@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import sampleTicketPayload from '../sample/sample.json';
 
 type GateType = 1 | 2;
@@ -421,6 +421,684 @@ function TicketCard({ ticket }: TicketCardProps) {
   );
 }
 
+interface ShareableSummaryCanvasProps {
+  tickets: Ticket[];
+  entranceCount: number;
+  eventCount: number;
+}
+
+function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: ShareableSummaryCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isSavingImage, setIsSavingImage] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string>('');
+
+  const summary = useMemo(() => {
+    if (!Array.isArray(tickets) || tickets.length === 0) {
+      return null;
+    }
+
+    const width = 1080;
+    const paddingTop = 96;
+    const paddingBottom = 96;
+    const lineHeight = 44;
+    const blankSpacing = Math.round(lineHeight * 0.7);
+    const chartHeight = 240;
+    const chartTopMargin = 16;
+    const chartLabelArea = 80;
+    const chartBottomMargin = 32;
+    const innerPaddingX = 120;
+    const beforeStatsSpacing = 8;
+    const afterStatsSpacing = 12;
+
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const indexToLabel = (index: number) => {
+      let value = index;
+      let label = '';
+      do {
+        label = alphabet[value % alphabet.length] + label;
+        value = Math.floor(value / alphabet.length) - 1;
+      } while (value >= 0);
+      return label;
+    };
+
+    const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土'];
+    const formatDateForCanvas = (raw?: string | null) => {
+      if (!raw || !/^\d{8}$/.test(raw)) {
+        return { label: raw ?? '日付未設定', month: null };
+      }
+      const year = Number(raw.slice(0, 4));
+      const month = Number(raw.slice(4, 6));
+      const day = Number(raw.slice(6, 8));
+      const date = new Date(year, month - 1, day);
+      const weekday = weekdayLabels[date.getDay()];
+      const label = `${year}/${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}(${weekday})`;
+      return { label, month };
+    };
+
+    const formatGateLabel = (gate?: GateType) => {
+      if (!gate) return '';
+      return gateLabels[gate] ?? `ゲート${gate}`;
+    };
+
+    const ticketEntries = tickets.map((ticket, index) => ({
+      label: indexToLabel(index),
+      ticket
+    }));
+
+    const scheduleSort = (schedule: EntranceSchedule | EventSchedule) => scheduleSortKey(schedule);
+
+    const eventsByKey = new Map<string, EventSchedule[]>();
+    ticketEntries.forEach(({ label, ticket }, ticketIndex) => {
+      const ticketKey = ticket.ticket_id ?? `ticket-${ticket.id ?? ticketIndex}`;
+      (ticket.event_schedules ?? []).forEach((event) => {
+        const dateKey = event.entrance_date ?? 'unknown';
+        const mapKey = `${ticketKey}-${dateKey}`;
+        const list = eventsByKey.get(mapKey) ?? [];
+        list.push(event);
+        eventsByKey.set(mapKey, list);
+      });
+    });
+
+    eventsByKey.forEach((list, mapKey) => {
+      eventsByKey.set(
+        mapKey,
+        [...list].sort((a, b) => {
+          const keyA = scheduleSort(a);
+          const keyB = scheduleSort(b);
+          if (keyA < keyB) return -1;
+          if (keyA > keyB) return 1;
+          return 0;
+        })
+      );
+    });
+
+    const ticketLines = ticketEntries.map(({ label, ticket }) => {
+      const entranceTotal = ticket.schedules?.length ?? 0;
+      const eventTotal = ticket.event_schedules?.length ?? 0;
+      return `${label}. ${ticket.item_name ?? '名称未登録'} ｜ 入場:${entranceTotal} ｜ パビリオン:${eventTotal}`;
+    });
+
+    interface EntranceLine {
+      key: string;
+      text: string;
+      events: { left: string; right: string }[];
+      month: number | null;
+    }
+
+    const entranceLines: EntranceLine[] = [];
+    const monthCountMap = new Map<number, number>();
+
+    ticketEntries.forEach(({ label, ticket }, ticketIndex) => {
+      const ticketKey = ticket.ticket_id ?? `ticket-${ticket.id ?? ticketIndex}`;
+      (ticket.schedules ?? []).forEach((schedule, scheduleIndex) => {
+        const dateInfo = formatDateForCanvas(schedule.entrance_date);
+        const timeLabel = schedule.schedule_name || formatTime(schedule.start_time);
+        const gateLabel = formatGateLabel(schedule.gate_type as GateType | undefined);
+        const useStateInfo = schedule.use_state !== undefined ? resolveUseState(schedule.use_state) : null;
+        const useStateLabel = useStateInfo?.label;
+        const isStateUnknown = !!useStateLabel && useStateLabel.includes('状態不明');
+        let statusText = '';
+        if (schedule.use_state === 1) {
+          statusText = schedule.admission_time ? formatTime(schedule.admission_time) : '入場済み';
+        } else if (useStateInfo && !isStateUnknown && useStateLabel) {
+          statusText = useStateLabel;
+        }
+        const parts = [
+          dateInfo.label,
+          label,
+          timeLabel && timeLabel !== '未設定' ? timeLabel : '',
+          gateLabel,
+          statusText
+        ].filter(Boolean);
+        const lineText = parts.join(' ｜ ');
+
+        if (dateInfo.month) {
+          monthCountMap.set(dateInfo.month, (monthCountMap.get(dateInfo.month) ?? 0) + 1);
+        }
+
+        const mapKey = `${ticketKey}-${schedule.entrance_date ?? 'unknown'}`;
+        const relatedEvents = eventsByKey.get(mapKey) ?? [];
+        eventsByKey.delete(mapKey);
+
+        const eventLines = relatedEvents.map((event) => {
+          const pavilionTime = event.schedule_name || formatTime(event.start_time);
+          const channelLabel =
+            event.registered_channel !== undefined ? resolveRegisteredChannel(event.registered_channel) : '';
+          const useStateInfo = event.use_state !== undefined ? resolveUseState(event.use_state) : null;
+          const useStateLabel = useStateInfo?.label;
+          const isStateUnknown = !!useStateLabel && useStateLabel.includes('状態不明');
+          let usageText = '';
+          if (event.use_state === 1) {
+            usageText = event.admission_time ? formatTime(event.admission_time) : '入場済み';
+          } else if (useStateInfo && !isStateUnknown && useStateLabel) {
+            usageText = useStateLabel;
+          }
+
+          const channelWithoutCode = channelLabel.replace(/（\d+）$/, '');
+          const leftParts = [
+            pavilionTime && pavilionTime !== '未設定' ? pavilionTime : '',
+            channelWithoutCode && channelWithoutCode !== '不明' ? channelWithoutCode : '',
+            usageText
+          ].filter(Boolean);
+          const leftText = leftParts.length > 0 ? `- ${leftParts.join(' ｜ ')}` : '-';
+          const rightText = event.event_name ?? '名称未登録';
+          return { left: leftText, right: rightText };
+        });
+
+        entranceLines.push({
+          key: `entrance-${label}-${schedule.user_visiting_reservation_id ?? schedule.id ?? scheduleIndex}`,
+          text: lineText,
+          events: eventLines,
+          month: dateInfo.month
+        });
+      });
+    });
+
+    entranceLines.sort((a, b) => {
+      const findSchedule = (line: EntranceLine) => {
+        const [datePart] = line.text.split(' ｜ ');
+        return datePart ?? '';
+      };
+      const scheduleA = findSchedule(a);
+      const scheduleB = findSchedule(b);
+      if (scheduleA < scheduleB) return -1;
+      if (scheduleA > scheduleB) return 1;
+      return 0;
+    });
+
+    const leftoverEvents = Array.from(eventsByKey.values())
+      .flat()
+      .sort((a, b) => {
+        const keyA = scheduleSort(a);
+        const keyB = scheduleSort(b);
+        if (keyA < keyB) return -1;
+        if (keyA > keyB) return 1;
+        return 0;
+      })
+      .map((event, index) => {
+        const dateInfo = formatDateForCanvas(event.entrance_date);
+        const pavilionTime = event.schedule_name || formatTime(event.start_time);
+        const parts = [
+          dateInfo.label,
+          event.event_name ?? '名称未登録',
+          pavilionTime && pavilionTime !== '未設定' ? pavilionTime : ''
+        ].filter(Boolean);
+        return {
+          key: `unassigned-${event.id ?? event.program_code ?? index}`,
+          text: parts.join(' ｜ ')
+        };
+      });
+
+    const months = [4, 5, 6, 7, 8, 9, 10];
+    const monthlyCounts = months.map((month) => ({
+      month,
+      label: `${month}月`,
+      count: monthCountMap.get(month) ?? 0
+    }));
+
+    const totalEventCount = entranceLines.reduce((acc, line) => acc + line.events.length, 0);
+    const leftoverCount = leftoverEvents.length;
+
+    let cursorHeight = paddingTop;
+    cursorHeight += lineHeight; // title
+    cursorHeight += beforeStatsSpacing;
+    cursorHeight += lineHeight; // stats
+    cursorHeight += afterStatsSpacing;
+    cursorHeight += blankSpacing; // gap
+    cursorHeight += lineHeight; // ticket heading
+    cursorHeight += ticketLines.length * lineHeight;
+    cursorHeight += blankSpacing; // gap
+    cursorHeight += lineHeight; // schedule heading
+    cursorHeight += entranceLines.length * lineHeight;
+    cursorHeight += totalEventCount * lineHeight;
+
+    if (leftoverCount > 0) {
+      cursorHeight += blankSpacing;
+      cursorHeight += lineHeight; // leftover heading
+      cursorHeight += leftoverCount * lineHeight;
+    }
+
+    cursorHeight += blankSpacing;
+    cursorHeight += lineHeight; // chart heading
+    cursorHeight += chartTopMargin;
+    cursorHeight += chartHeight;
+    cursorHeight += chartLabelArea;
+    cursorHeight += chartBottomMargin;
+    cursorHeight += lineHeight; // footer note
+
+    const height = cursorHeight + paddingBottom;
+
+    return {
+      width,
+      height,
+      paddingTop,
+      paddingBottom,
+      lineHeight,
+      blankSpacing,
+      chartHeight,
+      innerPaddingX,
+      chartTopMargin,
+      chartLabelArea,
+      chartBottomMargin,
+      beforeStatsSpacing,
+      afterStatsSpacing,
+      title: 'Expo 2025 来場まとめ',
+      summaryLabel: `入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
+      ticketLines,
+      entranceLines,
+      leftoverEvents,
+      monthlyCounts
+    };
+  }, [tickets, entranceCount, eventCount]);
+
+  const shareText = useMemo(
+    () => `Expo 2025 万博来場履歴\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
+    [entranceCount, eventCount]
+  );
+
+  const canUseWebShare = useMemo(() => {
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+      return false;
+    }
+    const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+    if (!nav.share) {
+      return false;
+    }
+    if (typeof File === 'undefined' || !nav.canShare) {
+      return false;
+    }
+    try {
+      const dummyFile = new File([''], 'preview.png', { type: 'image/png' });
+      return nav.canShare({ files: [dummyFile], text: 'test' });
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const getCanvasBlob = async (): Promise<Blob> =>
+    await new Promise<Blob>((resolve, reject) => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        reject(new Error('画像を取得できませんでした。'));
+        return;
+      }
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('画像の生成に失敗しました。'));
+        }
+      });
+    });
+
+  const handleSaveImage = async () => {
+    if (isSavingImage) return;
+    setActionMessage('');
+    setIsSavingImage(true);
+    try {
+      const blob = await getCanvasBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
+        now.getDate()
+      ).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      link.href = url;
+      link.download = `expo-visit-summary_${timestamp}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setActionMessage('画像をダウンロードしました。');
+    } catch (error) {
+      console.error(error);
+      setActionMessage(error instanceof Error ? error.message : '画像の保存に失敗しました。');
+    } finally {
+      setIsSavingImage(false);
+    }
+  };
+
+  const handleShareImage = async () => {
+    if (!canUseWebShare || isSharing) return;
+    setActionMessage('');
+    setIsSharing(true);
+    try {
+      const blob = await getCanvasBlob();
+      if (typeof File === 'undefined') {
+        throw new Error('このブラウザでは共有に対応していません。');
+      }
+      const file = new File([blob], 'expo-visit-summary.png', { type: 'image/png' });
+      const data: ShareData = {
+        title: 'Expo 2025 万博来場履歴',
+        text: shareText,
+        files: [file]
+      };
+      const nav = navigator as Navigator & { canShare?: (payload: ShareData) => boolean };
+      if (nav.canShare && !nav.canShare({ files: data.files })) {
+        throw new Error('このデバイスは画像共有に対応していません。');
+      }
+      await navigator.share(data);
+      setActionMessage('共有メニューを開きました。');
+    } catch (error) {
+      console.error(error);
+      setActionMessage(error instanceof Error ? error.message : '共有に失敗しました。');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!summary || !canvasRef.current) {
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    canvas.width = summary.width * devicePixelRatio;
+    canvas.height = summary.height * devicePixelRatio;
+    // canvas.style.width = `${summary.width}px`;
+    // canvas.style.height = `${summary.height}px`;
+
+    context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    context.clearRect(0, 0, summary.width, summary.height);
+    context.textBaseline = 'top';
+
+    // Background
+    context.fillStyle = '#f1f5f9';
+    context.fillRect(0, 0, summary.width, summary.height);
+
+    const cardX = 40;
+    const cardY = 40;
+    const cardWidth = summary.width - cardX * 2;
+    const cardHeight = summary.height - cardY * 2;
+
+    context.fillStyle = '#ffffff';
+    context.shadowColor = 'rgba(15, 23, 42, 0.08)';
+    context.shadowBlur = 32;
+    context.shadowOffsetY = 24;
+    context.fillRect(cardX, cardY, cardWidth, cardHeight);
+
+    context.shadowColor = 'transparent';
+
+    let cursorY = summary.paddingTop;
+    const startX = summary.innerPaddingX;
+    const sectionWidth = summary.width - summary.innerPaddingX * 2;
+
+    const drawText = (
+      text: string,
+      options?: { font?: string; color?: string; xOffset?: number; maxWidth?: number }
+    ) => {
+      if (!text) return;
+      const xOffset = options?.xOffset ?? 0;
+      context.font = options?.font ?? '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+      context.fillStyle = options?.color ?? '#1f2937';
+      context.textAlign = 'left';
+      const maxWidth = options?.maxWidth ?? Math.max(0, sectionWidth - xOffset);
+      context.fillText(text, startX + xOffset, cursorY, maxWidth || undefined);
+      cursorY += summary.lineHeight;
+    };
+
+    const drawSplitLine = (
+      left: string,
+      right: string,
+      options?: { font?: string; xOffset?: number; leftColor?: string; rightColor?: string }
+    ) => {
+      const xOffset = options?.xOffset ?? 0;
+      const totalAvailable = Math.max(0, sectionWidth - xOffset);
+      const gap = 24;
+      const leftWidth = Math.floor((totalAvailable - gap) / 2);
+      const rightWidth = totalAvailable - gap - leftWidth;
+      const baseFont = options?.font ?? '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+      const halfFont = baseFont.replace(/(\d+(\.\d+)?)px/, (_, value: string) => {
+        const numeric = Number.parseFloat(value);
+        return `${Math.max(10, Math.round((numeric / 2) * 10) / 10)}px`;
+      });
+      const halfLineHeight = summary.lineHeight / 2;
+
+      context.font = baseFont;
+      context.textAlign = 'left';
+
+      context.fillStyle = options?.leftColor ?? '#475569';
+      if (left) {
+        context.fillText(left, startX + xOffset, cursorY, leftWidth || undefined);
+      }
+
+      context.fillStyle = options?.rightColor ?? '#1f2937';
+      if (right) {
+        context.font = baseFont;
+        const fits = context.measureText(right).width <= rightWidth;
+        if (fits) {
+          context.fillText(right, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
+        } else {
+          context.font = halfFont;
+          const wrapRightText = (text: string): [string, string] => {
+            const findMidSpaceSplit = (value: string): [string, string] | null => {
+              const indices: number[] = [];
+              for (let i = 0; i < value.length; i += 1) {
+                const char = value[i];
+                if (char === ' ' || char === '　') {
+                  indices.push(i);
+                }
+              }
+              if (indices.length === 0) {
+                return null;
+              }
+              const middle = (value.length - 1) / 2;
+              let bestIndex = indices[0];
+              let bestDistance = Math.abs(indices[0] - middle);
+              indices.forEach((index) => {
+                const distance = Math.abs(index - middle);
+                if (distance < bestDistance) {
+                  bestDistance = distance;
+                  bestIndex = index;
+                }
+              });
+              const first = value.slice(0, bestIndex).trimEnd();
+              const second = value.slice(bestIndex + 1).trimStart();
+              if (!first || !second) {
+                return null;
+              }
+              return [first, second];
+            };
+
+            const lines: string[] = [''];
+            for (const char of text) {
+              const currentIndex = lines.length - 1;
+              const candidate = lines[currentIndex] + char;
+              const candidateWidth = context.measureText(candidate).width;
+              if (candidateWidth <= rightWidth || lines[currentIndex] === '') {
+                lines[currentIndex] = candidate;
+              } else if (lines.length < 2) {
+                lines.push(char);
+              } else {
+                let truncated = lines[1];
+                while (truncated.length > 0 && context.measureText(`${truncated}…`).width > rightWidth) {
+                  truncated = truncated.slice(0, -1);
+                }
+                lines[1] = truncated.length > 0 ? `${truncated}…` : '…';
+                return [lines[0], lines[1]];
+              }
+            }
+            if (lines.length === 1) {
+              const original = lines[0];
+              const splitBySpace = findMidSpaceSplit(original);
+              if (splitBySpace) {
+                const [first, second] = splitBySpace;
+                if (
+                  context.measureText(first).width <= rightWidth &&
+                  context.measureText(second).width <= rightWidth
+                ) {
+                  return [first, second];
+                }
+              }
+              for (let index = original.length - 1; index > 0; index -= 1) {
+                const first = original.slice(0, index);
+                const second = original.slice(index);
+                if (context.measureText(first).width <= rightWidth && context.measureText(second).width <= rightWidth) {
+                  return [first, second];
+                }
+              }
+              return [original, ''];
+            }
+            return [lines[0], lines[1] ?? ''];
+          };
+
+          const [firstLine, secondLine] = wrapRightText(right);
+          if (firstLine) {
+            context.fillText(firstLine, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
+          }
+          if (secondLine) {
+            context.fillText(
+              secondLine,
+              startX + xOffset + leftWidth + gap,
+              cursorY + halfLineHeight,
+              rightWidth || undefined
+            );
+          }
+        }
+      }
+
+      cursorY += summary.lineHeight;
+    };
+
+    drawText(summary.title, {
+      font: 'bold 44px "Noto Sans JP", "Yu Gothic", sans-serif',
+      color: '#0f172a'
+    });
+    cursorY += summary.beforeStatsSpacing;
+    drawText(summary.summaryLabel, {
+      font: '32px "Noto Sans JP", "Yu Gothic", sans-serif',
+      color: '#334155'
+    });
+    cursorY += summary.afterStatsSpacing;
+
+    cursorY += summary.blankSpacing;
+
+    drawText('チケット一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
+    summary.ticketLines.forEach((line) => {
+      drawText(line, { color: '#1e293b', font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
+    });
+
+    cursorY += summary.blankSpacing;
+
+    drawText('来場スケジュール', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
+    summary.entranceLines.forEach((line) => {
+      drawText(line.text, { color: '#111827', font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
+      line.events.forEach((eventLine) => {
+        drawSplitLine(eventLine.left, eventLine.right, {
+          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+          xOffset: 36,
+          leftColor: '#475569',
+          rightColor: '#1f2937'
+        });
+      });
+    });
+
+    if (summary.leftoverEvents.length > 0) {
+      cursorY += summary.blankSpacing;
+      drawText('その他パビリオン予約', {
+        font: 'bold 32px "Noto Sans JP", "Yu Gothic", sans-serif',
+        color: '#0f172a'
+      });
+      summary.leftoverEvents.forEach((event) => {
+        drawText(event.text, {
+          color: '#475569',
+          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+          xOffset: 16
+        });
+      });
+    }
+
+    cursorY += summary.blankSpacing;
+
+    drawText('月別来場回数', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
+
+    const chartTop = cursorY + summary.chartTopMargin;
+    const chartBottom = chartTop + summary.chartHeight;
+    const chartLeft = startX;
+    const chartRight = startX + sectionWidth;
+    const availableHeight = summary.chartHeight;
+    const barCount = summary.monthlyCounts.length;
+    const gap = 24;
+    const totalGap = gap * (barCount - 1);
+    const barWidth = (sectionWidth - totalGap) / barCount;
+    const maxCount = Math.max(...summary.monthlyCounts.map((item) => item.count), 1);
+    const baselineY = chartBottom;
+
+    context.strokeStyle = '#cbd5f5';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(chartLeft, baselineY);
+    context.lineTo(chartRight, baselineY);
+    context.stroke();
+
+    summary.monthlyCounts.forEach((item, index) => {
+      const barHeight = maxCount === 0 ? 0 : (item.count / maxCount) * availableHeight;
+      const barX = chartLeft + index * (barWidth + gap);
+      const barY = baselineY - barHeight;
+
+      context.fillStyle = '#38bdf8';
+      context.fillRect(barX, barY, barWidth, barHeight);
+
+      context.fillStyle = '#0f172a';
+      context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+      context.textAlign = 'center';
+      context.fillText(String(item.count), barX + barWidth / 2, barY - 32, barWidth);
+
+      context.fillStyle = '#334155';
+      context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+      context.fillText(item.label, barX + barWidth / 2, baselineY + 12, barWidth);
+    });
+
+    cursorY = baselineY + summary.chartLabelArea + summary.chartBottomMargin;
+    context.textAlign = 'left';
+    context.font = '22px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.fillStyle = '#94a3b8';
+    context.fillText('作成: 万博予約入場履歴ビューアー（非公式）', startX, cursorY, sectionWidth);
+  }, [summary]);
+
+  if (!summary) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-slate-800">保存・SNS共有用画像</h3>
+      <p className="mt-1 text-sm text-slate-500">
+        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。
+      </p>
+      <div className="mt-4 overflow-x-auto">
+        <canvas ref={canvasRef} className="max-w-full" />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={handleSaveImage}
+          disabled={isSavingImage}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+        >
+          {isSavingImage ? '保存中…' : '画像を保存'}
+        </button>
+        {canUseWebShare && (
+          <button
+            type="button"
+            onClick={handleShareImage}
+            disabled={isSharing}
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-500 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+          >
+            {isSharing ? '共有準備中…' : '共有する'}
+          </button>
+        )}
+      </div>
+      {actionMessage && <p className="mt-3 text-xs text-slate-500">{actionMessage}</p>}
+    </div>
+  );
+}
+
 export default function App() {
   const [rawInput, setRawInput] = useState<string>('');
   const [fileName, setFileName] = useState<string>('');
@@ -670,6 +1348,7 @@ export default function App() {
               {data.list.map((ticket, index) => (
                 <TicketCard key={ticket.id ?? ticket.ticket_id ?? `ticket-${index}`} ticket={ticket} />
               ))}
+              <ShareableSummaryCanvas tickets={data.list} entranceCount={entranceCount} eventCount={eventCount} />
             </div>
           </section>
         )}
