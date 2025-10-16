@@ -1,5 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import sampleTicketPayload from '../sample/sample.json';
+import { ticketTypes } from './ticketTypes';
+import { eventNameDic } from './pavilions';
 
 type GateType = 1 | 2;
 
@@ -41,6 +43,7 @@ interface Ticket {
   image_large_path?: string | null;
   schedules?: EntranceSchedule[] | null;
   event_schedules?: EventSchedule[] | null;
+  ticket_type_id?: string;
 }
 
 interface TicketPayload {
@@ -103,6 +106,14 @@ function resolveRegisteredChannel(channel?: number): string {
   }
   const label = registeredChannelLabels[channel];
   return label ? `${label}（${channel}）` : `不明（${channel}）`;
+}
+
+function resolveTicketName(ticket: Ticket): string {
+  return ticketTypes[ticket.ticket_type_id ?? ''] || ticket.item_name || '不明なチケット';
+}
+
+function resolvePavilionName(code: string): string | null {
+  return eventNameDic[code] || null;
 }
 
 function formatDate(value?: string | null): string {
@@ -263,7 +274,7 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
         const timeLabel = schedule.schedule_name || (schedule.start_time ? formatTime(schedule.start_time) : '');
         const entranceTitle = dateLabel !== '未設定' ? dateLabel : '日付未設定';
         const titleText = isEvent
-          ? (schedule as EventSchedule).event_name || timeLabel || '名称未登録'
+          ? resolvePavilionName((schedule as EventSchedule).program_code ?? '') || (schedule as EventSchedule).event_name || timeLabel || '名称未登録'
           : entranceTitle;
         const gateLabel = !isEvent && (schedule as EntranceSchedule).gate_type !== undefined
           ? gateLabels[(schedule as EntranceSchedule).gate_type as GateType] ??
@@ -371,7 +382,7 @@ function TicketCard({ ticket }: TicketCardProps) {
     <article className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-semibold text-slate-900">{ticket.item_name || '名称未登録'}</h2>
+          <h2 className="text-2xl font-semibold text-slate-900">{resolveTicketName(ticket)}</h2>
           <p className="text-sm text-slate-600">
             {ticket.item_summary?.replace(/\\n/g, '\n') || '説明がありません。'}
           </p>
@@ -516,7 +527,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     const ticketLines = ticketEntries.map(({ label, ticket }) => {
       const entranceTotal = ticket.schedules?.length ?? 0;
       const eventTotal = ticket.event_schedules?.length ?? 0;
-      return `${label}. ${ticket.item_name ?? '名称未登録'} ｜ 入場:${entranceTotal} ｜ パビリオン:${eventTotal}`;
+      return `${label}. ${resolveTicketName(ticket)} ｜ 入場:${entranceTotal} ｜ パビリオン:${eventTotal}`;
     });
 
     interface EntranceLine {
@@ -582,7 +593,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
             usageText
           ].filter(Boolean);
           const leftText = leftParts.length > 0 ? `- ${leftParts.join(' ｜ ')}` : '-';
-          const rightText = event.event_name ?? '名称未登録';
+          const rightText = resolvePavilionName(event.program_code ?? '') || '名称未登録';
           return { left: leftText, right: rightText };
         });
 
@@ -693,7 +704,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
   }, [tickets, entranceCount, eventCount]);
 
   const shareText = useMemo(
-    () => `Expo 2025 万博来場履歴\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
+    () => `Expo 2025 万博予約入場履歴\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回\nhttps://www.nakayuki.net/expo-history-viewer/`,
     [entranceCount, eventCount]
   );
 
@@ -1215,11 +1226,11 @@ export default function App() {
                 マイチケットのチケット一覧APIから取得したJSONを読み込み、入場予約やパビリオン予約を見やすく整理して表示します。過去の入場履歴の確認に便利です。データはブラウザ内でのみ処理され、外部に送信されることはありません。
               </p>
               <p className="mt-2 text-xs text-white/80">
-                本ツールはCodexが一から実装し、Codexへの指示・修正依頼と機能面に影響のない軽微な手直しのみ製作者が行いました。
+                本ツールはCodexが一から実装し、Codexへの指示・修正依頼と主要な機能以外の修正のみ製作者が行いました。
               </p>
             </div>
             <div className="text-right text-sm text-white/90">
-              <p>最終更新: 2024年10月14日</p>
+              <p>最終更新: 2024年10月16日</p>
               {/* <p>バージョン 0.1.0</p> */}
             </div>
           </div>
