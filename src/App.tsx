@@ -1266,6 +1266,7 @@ export default function App() {
             </ol>
             <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-slate-600">
               <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
+              <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
               <li>製作者が確認できていないデータやマイチケットやチケット一覧APIの仕様変更で、本ツールが正しく動作しなくなる場合があります。</li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
