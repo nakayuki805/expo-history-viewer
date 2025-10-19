@@ -112,8 +112,9 @@ function resolveTicketName(ticket: Ticket): string {
   return ticketTypes[ticket.ticket_type_id ?? ''] || ticket.item_name || '不明なチケット';
 }
 
-function resolvePavilionName(code: string): string | null {
-  return eventNameDic[code] || null;
+function resolvePavilionName(code: string, name: string|null|undefined): string {
+  const eventName = eventNameDic[code] || name || "不明なパビリオン";
+  return eventName.replace(/^シグネチャーパビリオン\s+/,'').replace(/※.+$/,'').trim();
 }
 
 function formatDate(value?: string | null): string {
@@ -274,7 +275,7 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
         const timeLabel = schedule.schedule_name || (schedule.start_time ? formatTime(schedule.start_time) : '');
         const entranceTitle = dateLabel !== '未設定' ? dateLabel : '日付未設定';
         const titleText = isEvent
-          ? resolvePavilionName((schedule as EventSchedule).program_code ?? '') || (schedule as EventSchedule).event_name || timeLabel || '名称未登録'
+          ? (resolvePavilionName((schedule as EventSchedule).program_code ?? '', (schedule as EventSchedule).event_name) || timeLabel)
           : entranceTitle;
         const gateLabel = !isEvent && (schedule as EntranceSchedule).gate_type !== undefined
           ? gateLabels[(schedule as EntranceSchedule).gate_type as GateType] ??
@@ -593,7 +594,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
             usageText
           ].filter(Boolean);
           const leftText = leftParts.length > 0 ? `- ${leftParts.join(' ｜ ')}` : '-';
-          const rightText = resolvePavilionName(event.program_code ?? '') || '名称未登録';
+          const rightText = resolvePavilionName(event.program_code ?? '', event.event_name);
           return { left: leftText, right: rightText };
         });
 
@@ -864,10 +865,13 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       const leftWidth = Math.floor((totalAvailable - gap) / 2);
       const rightWidth = totalAvailable - gap - leftWidth;
       const baseFont = options?.font ?? '26px "Noto Sans JP", "Yu Gothic", sans-serif';
-      const halfFont = baseFont.replace(/(\d+(\.\d+)?)px/, (_, value: string) => {
-        const numeric = Number.parseFloat(value);
-        return `${Math.max(10, Math.round((numeric / 2) * 10) / 10)}px`;
-      });
+      const fontSizeRegex = /(\d+(?:\.\d+)?)px/;
+      const baseFontMatch = baseFont.match(fontSizeRegex);
+      const baseFontSize = baseFontMatch ? Number.parseFloat(baseFontMatch[1]) : 26;
+      const minFontSize = Math.max(10, Math.round((baseFontSize / 2) * 10) / 10);
+      const createFont = (size: number) =>
+        baseFont.replace(fontSizeRegex, `${Math.max(10, Math.round(size * 10) / 10)}px`);
+      const twoLineFont = createFont(minFontSize);
       const halfLineHeight = summary.lineHeight / 2;
 
       context.font = baseFont;
@@ -880,12 +884,28 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
 
       context.fillStyle = options?.rightColor ?? '#1f2937';
       if (right) {
+        let singleLineFont: string | null = null;
         context.font = baseFont;
-        const fits = context.measureText(right).width <= rightWidth;
-        if (fits) {
+        let measuredWidth = context.measureText(right).width;
+        if (measuredWidth <= rightWidth) {
+          singleLineFont = baseFont;
+        } else {
+          for (let size = Math.floor(baseFontSize) - 1; size >= minFontSize; size -= 1) {
+            const candidateFont = createFont(size);
+            context.font = candidateFont;
+            measuredWidth = context.measureText(right).width;
+            if (measuredWidth <= rightWidth) {
+              singleLineFont = candidateFont;
+              break;
+            }
+          }
+        }
+
+        if (singleLineFont) {
+          context.font = singleLineFont;
           context.fillText(right, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
         } else {
-          context.font = halfFont;
+          context.font = twoLineFont;
           const wrapRightText = (text: string): [string, string] => {
             const findMidSpaceSplit = (value: string): [string, string] | null => {
               const indices: number[] = [];
@@ -1080,7 +1100,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-slate-800">保存・SNS共有用画像</h3>
       <p className="mt-1 text-sm text-slate-500">
-        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。
+        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。<br />iPhoneでデータが多い(大量の予約)場合、画像が生成されず空白になることがあります。修正に向けて調査中です。
       </p>
       <div className="mt-4 overflow-x-auto">
         <canvas ref={canvasRef} className="max-w-full" />
@@ -1106,6 +1126,9 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         )}
       </div>
       {actionMessage && <p className="mt-3 text-xs text-slate-500">{actionMessage}</p>}
+      {canUseWebShare && <p className="mt-1 text-sm text-slate-500">
+        iPhoneに画像を保存する場合、共有ボタンから保存できます。<br />iPhoneで大量の予約がある場合、画像の生成に失敗することがあります。修正に向けて調査中です。
+      </p>}
     </div>
   );
 }
@@ -1260,13 +1283,14 @@ export default function App() {
             <h2 className="text-xl font-semibold text-slate-900">使い方</h2>
             <ol className="mt-3 list-decimal space-y-1 pl-6 text-sm text-slate-600">
               <li>新しいタブでマイチケットにログインし、タブを開いたままにします。</li>
-              <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。長いコード(JSON)が表示されます。</li>
+              <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。とても長い記号やアルファベットの羅列によるコード(JSON)が表示されます。</li>
               <li>表示されたコード(JSON)を最初から最後まで全てコピーするか、そのままファイルとして保存します。<br />iPhoneの場合、Safariの共有メニューを開き、オプションで送信フォーマットをWebアーカイブに選択し、"ファイル"に保存します。</li>
-              <li>下のフォームでコード(JSON)を貼り付けるか、ファイルを選択すると内容を解析します。</li>
+              <li>下のフォームでコード(JSON)を貼り付けるか、先ほど保存したファイルを選択すると内容を解析します。</li>
             </ol>
             <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-slate-600">
               <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
               <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
+              <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に生成されます。</li>
               <li>製作者が確認できていないデータやマイチケットやチケット一覧APIの仕様変更で、本ツールが正しく動作しなくなる場合があります。</li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
