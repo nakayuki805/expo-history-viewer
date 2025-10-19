@@ -56,8 +56,8 @@ const gateLabels: Record<GateType, string> = {
 };
 
 const gateBadgeClasses: Record<GateType, string> = {
-  1: 'bg-emerald-100 text-emerald-700',
-  2: 'bg-indigo-100 text-indigo-700'
+  1: 'bg-[#E60012]/10 text-[#E60012]',
+  2: 'bg-[#0068B7]/10 text-[#0068B7]'
 };
 
 const useStateLabels: Record<UseStateType, string> = {
@@ -70,17 +70,25 @@ const useStateLabels: Record<UseStateType, string> = {
 };
 
 const useStateBadgeClasses: Record<UseStateType, string> = {
-  0: 'bg-amber-100 text-amber-700',
-  1: 'bg-emerald-100 text-emerald-700',
-  2: 'bg-rose-100 text-rose-700',
-  3: 'bg-orange-100 text-orange-700',
-  4: 'bg-indigo-100 text-indigo-700',
-  9: 'bg-slate-200 text-slate-700'
+  0: 'bg-[#D2D7DA] text-[#0B1F3B]',
+  1: 'bg-[#0068B7]/10 text-[#0068B7]',
+  2: 'bg-[#E60012]/10 text-[#E60012]',
+  3: 'bg-[#E60012]/20 text-[#E60012]',
+  4: 'bg-[#0068B7]/20 text-[#0068B7]',
+  9: 'bg-[#D2D7DA] text-[#0B1F3B]'
+};
+
+const themeColors = {
+  red: '#E60012',
+  blue: '#0068B7',
+  gray: '#D2D7DA',
+  darkBlue: '#0B1F3B',
+  textGray: '#4B5563'
 };
 
 function resolveUseState(value?: number): { label: string; className: string } {
   if (value === undefined || value === null) {
-    return { label: '状態不明', className: 'bg-slate-200 text-slate-700' };
+    return { label: '状態不明', className: 'bg-[#D2D7DA] text-[#0B1F3B]' };
   }
   const key = value as UseStateType;
   const label = useStateLabels[key];
@@ -88,7 +96,7 @@ function resolveUseState(value?: number): { label: string; className: string } {
   if (label && className) {
     return { label, className };
   }
-  return { label: `状態不明（${value}）`, className: 'bg-slate-200 text-slate-700' };
+  return { label: `状態不明（${value}）`, className: 'bg-[#D2D7DA] text-[#0B1F3B]' };
 }
 
 const registeredChannelLabels: Record<number, string> = {
@@ -255,7 +263,7 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
 
   if (orderedSchedules.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white/40 p-4 text-sm text-slate-500">
+      <div className="rounded-lg border border-dashed border-[#0068B7]/30 bg-white/70 p-4 text-sm text-[#0B1F3B]">
         {title}は見つかりませんでした。
       </div>
     );
@@ -283,20 +291,20 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
           : '';
         const gateBadgeClass = !isEvent && (schedule as EntranceSchedule).gate_type !== undefined
           ? gateBadgeClasses[(schedule as EntranceSchedule).gate_type as GateType] ??
-            'bg-slate-200 text-slate-700'
-          : 'bg-slate-200 text-slate-700';
+            'bg-[#D2D7DA] text-[#0068B7]'
+          : 'bg-[#D2D7DA] text-[#0068B7]';
 
         return (
-          <div key={key} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={key} className="rounded-lg border border-[#C5CCD0] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-semibold text-slate-900">{titleText}</span>
+              <span className="text-lg font-semibold text-[#0068B7]">{titleText}</span>
               {isEvent && dateLabel !== '未設定' && (
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                <span className="rounded-full bg-[#D2D7DA] px-3 py-1 text-xs font-medium text-[#0068B7]">
                   {dateLabel}
                 </span>
               )}
               {timeLabel && (
-                <span className="rounded-full bg-blue-100/80 px-3 py-1 text-xs font-medium text-blue-800">
+                <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-medium text-[#0068B7]">
                   {timeLabel}
                 </span>
               )}
@@ -311,52 +319,52 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
                 </span>
               )}
               {schedule.on_the_day && (
-                <span className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-semibold text-fuchsia-700">
+                <span className="rounded-full bg-[#E60012]/10 px-3 py-1 text-xs font-semibold text-[#E60012]">
                   当日予約
                 </span>
               )}
             </div>
 
             {isEvent && (schedule as EventSchedule).program_code && (
-              <div className="mt-2 text-sm text-slate-600">
+              <div className="mt-2 text-sm text-[#0B1F3B]">
                 プログラムコード: {(schedule as EventSchedule).program_code}
               </div>
             )}
 
-            <dl className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <dl className="mt-3 grid gap-2 text-sm text-[#0B1F3B] sm:grid-cols-2">
               {schedule.admission_time && (
                 <div>
-                  <dt className="font-medium text-slate-500">入場時刻</dt>
+                  <dt className="font-medium text-[#0068B7]">入場時刻</dt>
                   <dd>{formatTime(schedule.admission_time)}</dd>
                 </div>
               )}
               {isEvent && (schedule as EventSchedule).registered_channel !== undefined && (
                 <div>
-                  <dt className="font-medium text-slate-500">予約方法</dt>
+                  <dt className="font-medium text-[#0068B7]">予約方法</dt>
                   <dd>{resolveRegisteredChannel((schedule as EventSchedule).registered_channel)}</dd>
                 </div>
               )}
               {isEvent && schedule.start_time && (
                 <div>
-                  <dt className="font-medium text-slate-500">開始時刻</dt>
+                  <dt className="font-medium text-[#0068B7]">開始時刻</dt>
                   <dd>{formatTime(schedule.start_time)}</dd>
                 </div>
               )}
               {isEvent && schedule.end_time && (
                 <div>
-                  <dt className="font-medium text-slate-500">終了時刻</dt>
+                  <dt className="font-medium text-[#0068B7]">終了時刻</dt>
                   <dd>{formatTime(schedule.end_time)}</dd>
                 </div>
               )}
               {isEvent && (schedule as EventSchedule).portal_url && (
                 <div>
-                  <dt className="font-medium text-slate-500">詳細ページ</dt>
+                  <dt className="font-medium text-[#0068B7]">詳細ページ</dt>
                   <dd>
                     <a
                       href={(schedule as EventSchedule).portal_url as string}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-600 hover:underline"
+                      className="text-[#4B5563] hover:underline"
                     >
                       {(schedule as EventSchedule).portal_url_desc || '詳細を確認'}
                     </a>
@@ -380,31 +388,31 @@ function TicketCard({ ticket }: TicketCardProps) {
   const [isTicketIdVisible, setIsTicketIdVisible] = useState(false);
 
   return (
-    <article className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+    <article className="space-y-4 rounded-2xl border border-[#C5CCD0] bg-white p-6 shadow-sm transition hover:shadow-md">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-semibold text-slate-900">{resolveTicketName(ticket)}</h2>
-          <p className="text-sm text-slate-600">
+          <h2 className="text-2xl font-semibold text-[#0068B7]">{resolveTicketName(ticket)}</h2>
+          <p className="text-sm text-[#0B1F3B]">
             {ticket.item_summary?.replace(/\\n/g, '\n') || '説明がありません。'}
           </p>
-          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap gap-2 text-sm text-[#0B1F3B]">
             <button
               type="button"
               onClick={() => setIsTicketIdVisible((prev) => !prev)}
-              className="rounded-full bg-slate-100 px-3 py-1 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-300"
+              className="rounded-full bg-[#D2D7DA] px-3 py-1 text-left text-xs font-semibold text-[#0068B7] transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40"
               aria-pressed={isTicketIdVisible}
             >
               {isTicketIdVisible
                 ? `チケットID: ${ticket.ticket_id ?? '未登録'}`
                 : 'チケットID: タップで表示'}
             </button>
-            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+            <span className="rounded-full bg-[#D2D7DA] px-3 py-1 font-medium text-[#0068B7]">
               種別: {ticket.item_group_name ?? '未登録'}
             </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+            <span className="rounded-full bg-[#D2D7DA] px-3 py-1 font-medium text-[#0068B7]">
               予約回数: {ticket.schedules?.length ?? 0}
             </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">
+            <span className="rounded-full bg-[#D2D7DA] px-3 py-1 font-medium text-[#0068B7]">
               パビリオン予約: {ticket.event_schedules?.length ?? 0}
             </span>
           </div>
@@ -413,20 +421,20 @@ function TicketCard({ ticket }: TicketCardProps) {
           <div><img
             src={imageUrl}
             alt={ticket.item_name || 'チケット画像'}
-            className="h-24 max-w-48 rounded-xl border border-slate-100 object-contain shadow-sm"
+            className="h-24 max-w-48 rounded-xl border border-[#D2D7DA] object-contain shadow-sm"
             referrerPolicy="no-referrer"
-            style={{ backgroundColor: '#f1f5f9' }}
+            style={{ backgroundColor: themeColors.gray }}
           /></div>
         )}
       </header>
 
       <section>
-        <h3 className="text-lg font-semibold text-slate-800">入場予約</h3>
+        <h3 className="text-lg font-semibold text-[#0068B7]">入場予約</h3>
         <TicketSchedules title="入場予約" schedules={ticket.schedules ?? []} type="entrance" />
       </section>
 
       <section>
-        <h3 className="text-lg font-semibold text-slate-800">パビリオン予約</h3>
+        <h3 className="text-lg font-semibold text-[#0068B7]">パビリオン予約</h3>
         <TicketSchedules title="パビリオン予約" schedules={ticket.event_schedules ?? []} type="event" />
       </section>
     </article>
@@ -439,8 +447,36 @@ interface ShareableSummaryCanvasProps {
   eventCount: number;
 }
 
+interface SummaryEventLine {
+  left: string;
+  right: string;
+}
+
+interface SummaryEntranceLine {
+  key: string;
+  text: string;
+  baseText: string;
+  gateLabel?: string;
+  gateColor?: string;
+  events: SummaryEventLine[];
+  month: number | null;
+}
+
+interface SummaryEntranceTableRow {
+  label: string;
+  east: number;
+  west: number;
+  total: number;
+}
+
+interface SummaryEntranceTable {
+  columns: string[];
+  rows: SummaryEntranceTableRow[];
+}
+
 function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: ShareableSummaryCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDetailedView, setIsDetailedView] = useState<boolean>(true);
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [actionMessage, setActionMessage] = useState<string>('');
@@ -458,10 +494,26 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     const chartHeight = 240;
     const chartTopMargin = 16;
     const chartLabelArea = 80;
-    const chartBottomMargin = 32;
+    const chartBottomMargin = 0;
     const innerPaddingX = 120;
     const beforeStatsSpacing = 8;
     const afterStatsSpacing = 12;
+    const showDetailed = isDetailedView;
+
+    const bucketDefinitions = [
+      { key: '09', label: '9時' },
+      { key: '10', label: '10時' },
+      { key: '11', label: '11時' },
+      { key: '12', label: '12時' },
+      { key: '17', label: '17時' }
+    ];
+
+    const bucketCounts: Record<string, { east: number; west: number }> = {};
+    bucketDefinitions.forEach(({ key }) => {
+      bucketCounts[key] = { east: 0, west: 0 };
+    });
+    let totalEast = 0;
+    let totalWest = 0;
 
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const indexToLabel = (index: number) => {
@@ -491,6 +543,17 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     const formatGateLabel = (gate?: GateType) => {
       if (!gate) return '';
       return gateLabels[gate] ?? `ゲート${gate}`;
+    };
+
+    const determineBucket = (schedule: EntranceSchedule): string | null => {
+      const name = schedule.schedule_name;
+      if (!name) return null;
+      const match = name.match(/(\d{1,2})[:：]/);
+      if (!match) {
+        return null;
+      }
+      const hour = match[1].padStart(2, '0');
+      return bucketCounts[hour] ? hour : null;
     };
 
     const ticketEntries = tickets.map((ticket, index) => ({
@@ -531,14 +594,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       return `${label}. ${resolveTicketName(ticket)} ｜ 入場:${entranceTotal} ｜ パビリオン:${eventTotal}`;
     });
 
-    interface EntranceLine {
-      key: string;
-      text: string;
-      events: { left: string; right: string }[];
-      month: number | null;
-    }
-
-    const entranceLines: EntranceLine[] = [];
+    const entranceLines: SummaryEntranceLine[] = [];
     const monthCountMap = new Map<number, number>();
 
     ticketEntries.forEach(({ label, ticket }, ticketIndex) => {
@@ -556,6 +612,20 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         } else if (useStateInfo && !isStateUnknown && useStateLabel) {
           statusText = useStateLabel;
         }
+        const bucketKey = determineBucket(schedule as EntranceSchedule);
+        const gateType = (schedule as EntranceSchedule).gate_type;
+        if (gateType === 1) {
+          totalEast += 1;
+          if (bucketKey && bucketCounts[bucketKey]) {
+            bucketCounts[bucketKey].east += 1;
+          }
+        } else if (gateType === 2) {
+          totalWest += 1;
+          if (bucketKey && bucketCounts[bucketKey]) {
+            bucketCounts[bucketKey].west += 1;
+          }
+        }
+
         const parts = [
           dateInfo.label,
           label,
@@ -563,7 +633,15 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
           gateLabel,
           statusText
         ].filter(Boolean);
-        const lineText = parts.join(' ｜ ');
+        const gateIndex = gateLabel ? parts.indexOf(gateLabel) : -1;
+        const baseParts = gateIndex >= 0
+          ? [...parts.slice(0, gateIndex), ...parts.slice(gateIndex + 1)]
+          : [...parts];
+        const baseText = baseParts.join(' ｜ ');
+        const lineText = (gateLabel ? [...baseParts, gateLabel] : baseParts).join(' ｜ ');
+        const gateColor = gateLabel
+          ? ((schedule as EntranceSchedule).gate_type === 1 ? themeColors.red : themeColors.blue)
+          : undefined;
 
         if (dateInfo.month) {
           monthCountMap.set(dateInfo.month, (monthCountMap.get(dateInfo.month) ?? 0) + 1);
@@ -573,7 +651,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         const relatedEvents = eventsByKey.get(mapKey) ?? [];
         eventsByKey.delete(mapKey);
 
-        const eventLines = relatedEvents.map((event) => {
+        const eventLines: SummaryEventLine[] = relatedEvents.map((event) => {
           const pavilionTime = event.schedule_name || formatTime(event.start_time);
           const channelLabel =
             event.registered_channel !== undefined ? resolveRegisteredChannel(event.registered_channel) : '';
@@ -601,6 +679,9 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         entranceLines.push({
           key: `entrance-${label}-${schedule.user_visiting_reservation_id ?? schedule.id ?? scheduleIndex}`,
           text: lineText,
+          baseText,
+          gateLabel: gateLabel || undefined,
+          gateColor,
           events: eventLines,
           month: dateInfo.month
         });
@@ -608,7 +689,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     });
 
     entranceLines.sort((a, b) => {
-      const findSchedule = (line: EntranceLine) => {
+      const findSchedule = (line: SummaryEntranceLine) => {
         const [datePart] = line.text.split(' ｜ ');
         return datePart ?? '';
       };
@@ -618,6 +699,29 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       if (scheduleA > scheduleB) return 1;
       return 0;
     });
+
+    const entranceTableRows: SummaryEntranceTableRow[] = bucketDefinitions.map(({ key, label }) => {
+      const counts = bucketCounts[key];
+      const east = counts?.east ?? 0;
+      const west = counts?.west ?? 0;
+      return {
+        label,
+        east,
+        west,
+        total: east + west
+      };
+    });
+    entranceTableRows.push({
+      label: '合計',
+      east: totalEast,
+      west: totalWest,
+      total: totalEast + totalWest
+    });
+
+    const entranceTable: SummaryEntranceTable = {
+      columns: ['東', '西', '合計'],
+      rows: entranceTableRows
+    };
 
     const leftoverEvents = Array.from(eventsByKey.values())
       .flat()
@@ -651,24 +755,28 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
 
     const totalEventCount = entranceLines.reduce((acc, line) => acc + line.events.length, 0);
     const leftoverCount = leftoverEvents.length;
+    const tableRowCount = entranceTable.rows.length + 1;
 
     let cursorHeight = paddingTop;
     cursorHeight += lineHeight; // title
     cursorHeight += beforeStatsSpacing;
     cursorHeight += lineHeight; // stats
     cursorHeight += afterStatsSpacing;
-    cursorHeight += blankSpacing; // gap
-    cursorHeight += lineHeight; // ticket heading
-    cursorHeight += ticketLines.length * lineHeight;
-    cursorHeight += blankSpacing; // gap
-    cursorHeight += lineHeight; // schedule heading
-    cursorHeight += entranceLines.length * lineHeight;
-    cursorHeight += totalEventCount * lineHeight;
 
-    if (leftoverCount > 0) {
-      cursorHeight += blankSpacing;
-      cursorHeight += lineHeight; // leftover heading
-      cursorHeight += leftoverCount * lineHeight;
+    if (showDetailed) {
+      cursorHeight += blankSpacing; // gap before tickets
+      cursorHeight += lineHeight; // ticket heading
+      cursorHeight += ticketLines.length * lineHeight;
+      cursorHeight += blankSpacing; // gap before schedules
+      cursorHeight += lineHeight; // schedule heading
+      cursorHeight += entranceLines.length * lineHeight;
+      cursorHeight += totalEventCount * lineHeight;
+
+      if (leftoverCount > 0) {
+        cursorHeight += blankSpacing;
+        cursorHeight += lineHeight; // leftover heading
+        cursorHeight += leftoverCount * lineHeight;
+      }
     }
 
     cursorHeight += blankSpacing;
@@ -677,6 +785,12 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     cursorHeight += chartHeight;
     cursorHeight += chartLabelArea;
     cursorHeight += chartBottomMargin;
+
+    cursorHeight += blankSpacing;
+    cursorHeight += lineHeight; // table heading
+    cursorHeight += tableRowCount * lineHeight;
+
+    cursorHeight += blankSpacing;
     cursorHeight += lineHeight; // footer note
 
     const height = cursorHeight + paddingBottom;
@@ -700,12 +814,14 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       ticketLines,
       entranceLines,
       leftoverEvents,
-      monthlyCounts
+      monthlyCounts,
+      showDetailed,
+      entranceTable
     };
-  }, [tickets, entranceCount, eventCount]);
+  }, [tickets, entranceCount, eventCount, isDetailedView]);
 
   const shareText = useMemo(
-    () => `Expo 2025 万博予約入場履歴\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回\nhttps://www.nakayuki.net/expo-history-viewer/`,
+    () => `Expo 2025 来場まとめ\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
     [entranceCount, eventCount]
   );
 
@@ -780,7 +896,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       }
       const file = new File([blob], 'expo-visit-summary.png', { type: 'image/png' });
       const data: ShareData = {
-        title: 'Expo 2025 万博来場履歴',
+        title: 'Expo 2025 来場まとめ',
         text: shareText,
         files: [file]
       };
@@ -820,7 +936,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     context.textBaseline = 'top';
 
     // Background
-    context.fillStyle = '#f1f5f9';
+    context.fillStyle = themeColors.gray;
     context.fillRect(0, 0, summary.width, summary.height);
 
     const cardX = 40;
@@ -847,10 +963,47 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       if (!text) return;
       const xOffset = options?.xOffset ?? 0;
       context.font = options?.font ?? '28px "Noto Sans JP", "Yu Gothic", sans-serif';
-      context.fillStyle = options?.color ?? '#1f2937';
+      context.fillStyle = options?.color ?? themeColors.darkBlue;
       context.textAlign = 'left';
       const maxWidth = options?.maxWidth ?? Math.max(0, sectionWidth - xOffset);
       context.fillText(text, startX + xOffset, cursorY, maxWidth || undefined);
+      cursorY += summary.lineHeight;
+    };
+
+    const drawEntranceLine = (line: SummaryEntranceLine) => {
+      const baseText = line.baseText || '';
+      const gateText = line.gateLabel || '';
+      const gateColor = line.gateColor ?? themeColors.red;
+
+      context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+      context.textAlign = 'left';
+      context.fillStyle = themeColors.darkBlue;
+
+      const measuredBaseWidth = baseText ? context.measureText(baseText).width : 0;
+      const baseWidth = baseText ? Math.min(measuredBaseWidth, sectionWidth) : 0;
+
+      if (baseText) {
+        context.fillText(baseText, startX, cursorY, sectionWidth);
+      }
+
+      let currentX = startX + baseWidth;
+      const maxX = startX + sectionWidth;
+      if (currentX > maxX) {
+        currentX = maxX;
+      }
+
+      if (baseText && gateText) {
+        const delimiter = ' ｜ ';
+        context.fillStyle = themeColors.darkBlue;
+        context.fillText(delimiter, currentX, cursorY);
+        currentX += context.measureText(delimiter).width;
+      }
+
+      if (gateText) {
+        context.fillStyle = gateColor;
+        context.fillText(gateText, currentX, cursorY);
+      }
+
       cursorY += summary.lineHeight;
     };
 
@@ -877,12 +1030,12 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       context.font = baseFont;
       context.textAlign = 'left';
 
-      context.fillStyle = options?.leftColor ?? '#475569';
+      context.fillStyle = options?.leftColor ?? themeColors.textGray;
       if (left) {
         context.fillText(left, startX + xOffset, cursorY, leftWidth || undefined);
       }
 
-      context.fillStyle = options?.rightColor ?? '#1f2937';
+      context.fillStyle = options?.rightColor ?? themeColors.textGray;
       if (right) {
         let singleLineFont: string | null = null;
         context.font = baseFont;
@@ -998,55 +1151,57 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
 
     drawText(summary.title, {
       font: 'bold 44px "Noto Sans JP", "Yu Gothic", sans-serif',
-      color: '#0f172a'
+      color: themeColors.blue
     });
     cursorY += summary.beforeStatsSpacing;
     drawText(summary.summaryLabel, {
       font: '32px "Noto Sans JP", "Yu Gothic", sans-serif',
-      color: '#334155'
+      color: themeColors.red
     });
     cursorY += summary.afterStatsSpacing;
 
     cursorY += summary.blankSpacing;
 
-    drawText('チケット一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
-    summary.ticketLines.forEach((line) => {
-      drawText(line, { color: '#1e293b', font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
-    });
-
-    cursorY += summary.blankSpacing;
-
-    drawText('来場スケジュール', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
-    summary.entranceLines.forEach((line) => {
-      drawText(line.text, { color: '#111827', font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
-      line.events.forEach((eventLine) => {
-        drawSplitLine(eventLine.left, eventLine.right, {
-          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
-          xOffset: 36,
-          leftColor: '#475569',
-          rightColor: '#1f2937'
-        });
+    if (summary.showDetailed) {
+      drawText('チケット一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
+      summary.ticketLines.forEach((line) => {
+        drawText(line, { color: themeColors.darkBlue, font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
       });
-    });
 
-    if (summary.leftoverEvents.length > 0) {
       cursorY += summary.blankSpacing;
-      drawText('その他パビリオン予約', {
-        font: 'bold 32px "Noto Sans JP", "Yu Gothic", sans-serif',
-        color: '#0f172a'
-      });
-      summary.leftoverEvents.forEach((event) => {
-        drawText(event.text, {
-          color: '#475569',
-          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
-          xOffset: 16
+
+      drawText('来場予約一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
+      summary.entranceLines.forEach((line) => {
+        drawEntranceLine(line);
+        line.events.forEach((eventLine) => {
+          drawSplitLine(eventLine.left, eventLine.right, {
+            font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+            xOffset: 36,
+            leftColor: themeColors.textGray,
+            rightColor: themeColors.textGray
+          });
         });
       });
+
+      if (summary.leftoverEvents.length > 0) {
+        cursorY += summary.blankSpacing;
+        drawText('その他パビリオン予約', {
+          font: 'bold 32px "Noto Sans JP", "Yu Gothic", sans-serif',
+          color: themeColors.blue
+        });
+        summary.leftoverEvents.forEach((event) => {
+          drawText(event.text, {
+            color: themeColors.textGray,
+            font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+            xOffset: 16
+          });
+        });
+      }
+
+      cursorY += summary.blankSpacing;
     }
 
-    cursorY += summary.blankSpacing;
-
-    drawText('月別来場回数', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: '#0f172a' });
+    drawText('月別来場回数', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
 
     const chartTop = cursorY + summary.chartTopMargin;
     const chartBottom = chartTop + summary.chartHeight;
@@ -1060,7 +1215,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     const maxCount = Math.max(...summary.monthlyCounts.map((item) => item.count), 1);
     const baselineY = chartBottom;
 
-    context.strokeStyle = '#cbd5f5';
+    context.strokeStyle = themeColors.gray;
     context.lineWidth = 2;
     context.beginPath();
     context.moveTo(chartLeft, baselineY);
@@ -1072,23 +1227,88 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       const barX = chartLeft + index * (barWidth + gap);
       const barY = baselineY - barHeight;
 
-      context.fillStyle = '#38bdf8';
+      context.fillStyle = themeColors.blue;
       context.fillRect(barX, barY, barWidth, barHeight);
 
-      context.fillStyle = '#0f172a';
+      context.fillStyle = themeColors.textGray;
       context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
       context.textAlign = 'center';
       context.fillText(String(item.count), barX + barWidth / 2, barY - 32, barWidth);
 
-      context.fillStyle = '#334155';
+      context.fillStyle = themeColors.darkBlue;
       context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
       context.fillText(item.label, barX + barWidth / 2, baselineY + 12, barWidth);
     });
 
-    cursorY = baselineY + summary.chartLabelArea + summary.chartBottomMargin;
+    const tableHeaderY = baselineY + summary.chartLabelArea + summary.chartBottomMargin + summary.blankSpacing / 2;
+    context.textAlign = 'left';
+    context.font = 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.fillStyle = themeColors.blue;
+    context.fillText('入場予約集計表', startX, tableHeaderY, sectionWidth);
+
+    const columnCount = summary.entranceTable.columns.length + 1;
+    const columnWidth = sectionWidth / columnCount;
+    const rowHeight = summary.lineHeight;
+    const totalRows = summary.entranceTable.rows.length + 1;
+    const tableStartX = startX;
+    const tableTop = tableHeaderY + rowHeight;
+    const tableHeight = totalRows * rowHeight;
+    let tableRowY = tableTop;
+
+    context.strokeStyle = themeColors.gray;
+    context.lineWidth = 1;
+
+    context.strokeRect(tableStartX, tableTop, sectionWidth, tableHeight);
+
+    for (let rowIndex = 1; rowIndex < totalRows; rowIndex += 1) {
+      const y = tableTop + rowIndex * rowHeight;
+      context.beginPath();
+      context.moveTo(tableStartX, y);
+      context.lineTo(tableStartX + sectionWidth, y);
+      context.stroke();
+    }
+
+    for (let colIndex = 1; colIndex < columnCount; colIndex += 1) {
+      const x = tableStartX + colIndex * columnWidth;
+      context.beginPath();
+      context.moveTo(x, tableTop);
+      context.lineTo(x, tableTop + tableHeight);
+      context.stroke();
+    }
+
+    context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.fillStyle = themeColors.darkBlue;
+    context.textAlign = 'left';
+    context.fillText('時間', startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
+
+    context.textAlign = 'center';
+    summary.entranceTable.columns.forEach((columnLabel, index) => {
+      const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
+      context.fillText(columnLabel, cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
+    });
+
+    tableRowY += rowHeight;
+
+    summary.entranceTable.rows.forEach((row) => {
+      context.textAlign = 'left';
+      context.fillStyle = themeColors.darkBlue;
+      context.fillText(row.label, startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
+
+      const values = [row.east, row.west, row.total];
+      context.textAlign = 'center';
+      context.fillStyle = themeColors.textGray;
+      values.forEach((value, index) => {
+        const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
+        context.fillText(String(value), cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
+      });
+
+      tableRowY += rowHeight;
+    });
+
+    cursorY = tableRowY + summary.blankSpacing;
     context.textAlign = 'left';
     context.font = '22px "Noto Sans JP", "Yu Gothic", sans-serif';
-    context.fillStyle = '#94a3b8';
+    context.fillStyle = themeColors.blue;
     context.fillText('作成: 万博予約入場履歴ビューアー（非公式）', startX, cursorY, sectionWidth);
   }, [summary]);
 
@@ -1097,11 +1317,32 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="text-lg font-semibold text-slate-800">保存・SNS共有用画像</h3>
-      <p className="mt-1 text-sm text-slate-500">
+    <div className="rounded-3xl border border-[#C5CCD0] bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-[#0068B7]">保存・SNS共有用画像</h3>
+      <p className="mt-1 text-sm text-[#0B1F3B]">
         画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。<br />iPhoneでデータが多い(大量の予約)場合、画像が生成されず空白になることがあります。修正に向けて調査中です。
       </p>
+      <div className="mt-4 flex items-center justify-end">
+        <label className="flex items-center gap-3 text-sm text-[#0B1F3B]">
+          <span>チケット・来場予約一覧を表示</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isDetailedView}
+            onClick={() => setIsDetailedView((prev) => !prev)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+              isDetailedView ? 'bg-[#0068B7]' : 'bg-[#C5CCD0]'
+            }`}
+          >
+            <span className="sr-only">チケット・来場予約一覧を表示</span>
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                isDetailedView ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </label>
+      </div>
       <div className="mt-4 overflow-x-auto">
         <canvas ref={canvasRef} className="max-w-full" />
       </div>
@@ -1110,7 +1351,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
           type="button"
           onClick={handleSaveImage}
           disabled={isSavingImage}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0068B7] px-4 py-2 text-sm font-semibold text-white shadow transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[#0068B7]/40"
         >
           {isSavingImage ? '保存中…' : '画像を保存'}
         </button>
@@ -1119,14 +1360,14 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
             type="button"
             onClick={handleShareImage}
             disabled={isSharing}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-sky-500 px-4 py-2 text-sm font-semibold text-sky-600 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E60012] px-4 py-2 text-sm font-semibold text-[#E60012] transition hover:bg-[#E60012]/10 disabled:cursor-not-allowed disabled:border-[#D2D7DA] disabled:text-[#D2D7DA]"
           >
             {isSharing ? '共有準備中…' : '共有する'}
           </button>
         )}
       </div>
-      {actionMessage && <p className="mt-3 text-xs text-slate-500">{actionMessage}</p>}
-      {canUseWebShare && <p className="mt-1 text-sm text-slate-500">
+      {actionMessage && <p className="mt-3 text-xs text-[#0B1F3B]">{actionMessage}</p>}
+      {canUseWebShare && <p className="mt-1 text-sm text-[#0B1F3B]">
         iPhoneに画像を保存する場合、共有ボタンから保存できます。<br />iPhoneで大量の予約がある場合、画像の生成に失敗することがあります。修正に向けて調査中です。
       </p>}
     </div>
@@ -1239,9 +1480,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16">
+    <div className="min-h-screen bg-[#D2D7DA] pb-16">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 pt-10 sm:px-6">
-        <header className="space-y-4 rounded-3xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-700 p-8 text-white shadow-lg">
+        <header className="space-y-4 rounded-3xl bg-[#0068B7] p-8 text-white shadow-lg">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">万博予約入場履歴ビューアー</h1>
@@ -1258,36 +1499,36 @@ export default function App() {
             </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2 rounded-full bg-white/15 px-4 py-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+            <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2">
+              <span className="inline-flex h-2 w-2 rounded-full bg-[#D2D7DA]" />
               <span>データはローカル処理のみ</span>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white/15 px-4 py-2">
-              <span className="inline-flex h-2 w-2 rounded-full bg-amber-300" />
+            <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2">
+              <span className="inline-flex h-2 w-2 rounded-full bg-[#E60012]" />
               <span>JSON貼り付けとファイル読み込みに対応</span>
             </div>
           </div>
         </header>
 
-        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm">
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
+        <section className="space-y-6 rounded-3xl border border-[#C5CCD0] bg-white/95 p-6 shadow-sm">
+          <div className="rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-4 text-sm text-[#E60012]">
             <p className="font-semibold">ご利用にあたっての注意</p>
             <p className="mt-1 leading-relaxed">
               このツールは非公式に個人が作成したものです。ご利用に際していかなる責任も負いかねます。
               また、このツールおよびこのツールで得た情報について公式窓口への問い合わせは絶対に行わないでください。
             </p>
           </div>
-          <div className="text-sm">下の方の「JSON貼り付け」欄にある「サンプルを読み込む」ボタンを押すとサンプル表示できます。ちなみに製作者個人の履歴です。</div>
+          <div className="text-sm text-[#0B1F3B]">下の方の「JSON貼り付け」欄にある「サンプルを読み込む」ボタンを押すとサンプル表示できます。ちなみに製作者個人の履歴です。</div>
 
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">使い方</h2>
-            <ol className="mt-3 list-decimal space-y-1 pl-6 text-sm text-slate-600">
+            <h2 className="text-xl font-semibold text-[#0068B7]">使い方</h2>
+            <ol className="mt-3 list-decimal space-y-1 pl-6 text-sm text-[#0B1F3B]">
               <li>新しいタブでマイチケットにログインし、タブを開いたままにします。</li>
               <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。とても長い記号やアルファベットの羅列によるコード(JSON)が表示されます。</li>
               <li>表示されたコード(JSON)を最初から最後まで全てコピーするか、そのままファイルとして保存します。<br />iPhoneの場合、Safariの共有メニューを開き、オプションで送信フォーマットをWebアーカイブに選択し、"ファイル"に保存します。</li>
               <li>下のフォームでコード(JSON)を貼り付けるか、先ほど保存したファイルを選択すると内容を解析します。</li>
             </ol>
-            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-slate-600">
+            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-[#0B1F3B]">
               <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
               <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
               <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に生成されます。</li>
@@ -1298,7 +1539,7 @@ export default function App() {
                 href="https://ticket.expo2025.or.jp/myticket/"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-4 py-2 font-semibold text-white shadow hover:bg-sky-700"
+                className="inline-flex items-center gap-1 rounded-full bg-[#E60012] px-4 py-2 font-semibold text-white shadow hover:brightness-110"
               >
                 マイチケットを開く
                 <span aria-hidden="true">&gt;</span>
@@ -1307,7 +1548,7 @@ export default function App() {
                 href="https://ticket.expo2025.or.jp/api/d/my/tickets/"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-sky-500 px-4 py-2 font-semibold text-sky-600 hover:bg-sky-50"
+                className="inline-flex items-center gap-1 rounded-full border border-[#0068B7] px-4 py-2 font-semibold text-[#0068B7] hover:bg-[#0068B7]/10"
               >
                 チケット一覧APIを開く
                 <span aria-hidden="true">&gt;</span>
@@ -1317,12 +1558,12 @@ export default function App() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-3">
-              <label className="flex items-center justify-between text-sm font-medium text-slate-700">
+              <label className="flex items-center justify-between text-sm font-medium text-[#0B1F3B]">
                 JSONを貼り付け
                 <button
                   type="button"
                   onClick={handleSample}
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  className="rounded-full border border-[#0068B7] px-3 py-1 text-xs font-semibold text-[#0068B7] transition hover:brightness-110"
                 >
                   サンプルを読み込む
                 </button>
@@ -1332,31 +1573,31 @@ export default function App() {
                 onChange={(event) => setRawInput(event.target.value)}
                 rows={14}
                 placeholder="チケット一覧APIのJSONをここに貼り付けてください"
-                className="w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 shadow-inner focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                className="w-full resize-y rounded-2xl border border-[#C5CCD0] bg-white px-4 py-3 text-sm text-[#0B1F3B] shadow-inner focus:border-[#0068B7] focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40"
               />
               <button
                 type="button"
                 onClick={handleParse}
-                className="w-full rounded-full bg-sky-600 px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                className="w-full rounded-full bg-[#0068B7] px-4 py-3 text-sm font-semibold text-white shadow transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#0068B7]/50"
               >
                 この内容で解析する
               </button>
             </div>
 
             <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">ファイルから読み込む（JSON / HTML）</label>
-              <label className="flex w-full min-h-[12rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 transition hover:border-sky-400 hover:text-sky-600">
+              <label className="text-sm font-medium text-[#0B1F3B]">ファイルから読み込む（JSON / HTML）</label>
+              <label className="flex w-full min-h-[12rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#0068B7]/40 bg-white p-6 text-center text-sm text-[#0B1F3B] transition hover:border-[#0068B7] hover:text-[#0068B7]">
                 <input type="file" accept=".json,.txt,.html,.htm,.webarchive" className="hidden" onChange={handleFileChange} />
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-sky-600">クリックまたはドラッグ＆ドロップ</span>
+                <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-semibold text-[#0068B7]">クリックまたはドラッグ＆ドロップ</span>
                 <p>保存したJSONファイル、またはiPhoneのWeb Archiveファイルを読み込めます。</p>
-                {fileName && <p className="font-medium text-slate-700">選択中: {fileName}</p>}
-                {isLoadingFile && <p className="text-sky-600">読み込み中...</p>}
+                {fileName && <p className="font-medium text-[#0068B7]">選択中: {fileName}</p>}
+                {isLoadingFile && <p className="text-[#E60012]">読み込み中...</p>}
               </label>
             </div>
           </div>
 
           {error && (
-            <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-3 text-sm text-[#E60012]">
               {error}
             </div>
           )}
@@ -1365,17 +1606,17 @@ export default function App() {
         {data && (
           <section className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
-                <p className="text-sm text-slate-500">チケット数</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{ticketCount}</p>
+              <div className="rounded-3xl border border-[#0068B7]/15 bg-white p-5 text-center shadow-sm">
+                <p className="text-sm font-medium text-[#0068B7]">チケット数</p>
+                <p className="mt-2 text-3xl font-semibold text-[#E60012]">{ticketCount}</p>
               </div>
-              <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
-                <p className="text-sm text-slate-500">入場予約</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{entranceCount}</p>
+              <div className="rounded-3xl border border-[#0068B7]/15 bg-white p-5 text-center shadow-sm">
+                <p className="text-sm font-medium text-[#0068B7]">入場予約</p>
+                <p className="mt-2 text-3xl font-semibold text-[#E60012]">{entranceCount}</p>
               </div>
-              <div className="rounded-3xl bg-white p-5 text-center shadow-sm">
-                <p className="text-sm text-slate-500">パビリオン予約</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">{eventCount}</p>
+              <div className="rounded-3xl border border-[#0068B7]/15 bg-white p-5 text-center shadow-sm">
+                <p className="text-sm font-medium text-[#0068B7]">パビリオン予約</p>
+                <p className="mt-2 text-3xl font-semibold text-[#E60012]">{eventCount}</p>
               </div>
             </div>
 
@@ -1389,21 +1630,21 @@ export default function App() {
         )}
 
         {!data && !error && (
-          <section className="rounded-3xl border border-dashed border-slate-300 bg-white/60 p-6 text-center text-sm text-slate-500">
+          <section className="rounded-3xl border border-dashed border-[#0068B7]/30 bg-white/80 p-6 text-center text-sm text-[#0B1F3B]">
             JSONを解析するとここにチケットの一覧が表示されます。
           </section>
         )}
       </div>
-      <footer className="mt-6 mx-auto w-full max-w-5xl px-4 text-xs text-slate-500 sm:px-6">
-        <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-4">
-          <p className="font-semibold text-slate-600">製作者情報</p>
+      <footer className="mt-6 mx-auto w-full max-w-5xl px-4 text-xs text-[#0B1F3B] sm:px-6">
+        <div className="rounded-2xl border border-[#C5CCD0] bg-white/90 px-4 py-4">
+          <p className="font-semibold text-[#0068B7]">製作者情報</p>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
             <span>製作者: Nakayuki</span>
             <span>
               連絡先: <span className="underline decoration-dotted">yuki [at] nakayuki.net</span>
             </span>
             <span>
-              X: <a href="https://x.com/nakayuki805" target="_blank" rel="noreferrer" className="text-slate-600 underline">
+              X: <a href="https://x.com/nakayuki805" target="_blank" rel="noreferrer" className="text-[#0068B7] underline">
                 @nakayuki805
               </a>
             </span>
