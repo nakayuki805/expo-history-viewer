@@ -124,7 +124,12 @@ function resolveTicketName(ticket: Ticket): string {
 
 function resolvePavilionName(code: string, name: string|null|undefined): string {
   const eventName = eventNameDic[code] || name || "不明なパビリオン";
-  return eventName.replace(/^シグネチャーパビリオン\s+/,'').replace(/※.+$/,'').trim();
+  return eventName
+    .trim()
+    .replace(/^シグネチャーパビリオン\s+/,'')
+    .replace(/\*車いす使用者は下記専用回にご予約下さい$/,'')
+    .replace(/\/年齢に関わらず全員予約が必要$/,'')
+    .replace(/※.+$/,'');
 }
 
 function formatDate(value?: string | null): string {
