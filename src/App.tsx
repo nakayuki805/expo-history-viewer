@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import sampleTicketPayload from '../sample/sample.json';
 import { ticketTypes } from './ticketTypes';
 import { eventNameDic } from './pavilions';
@@ -206,6 +206,16 @@ function scheduleSortKey(schedule: EntranceSchedule | EventSchedule): string {
   return `${date}${time}`;
 }
 
+function getTicketKey(ticket: Ticket, index: number): string {
+  if (ticket.id !== undefined) {
+    return `id-${ticket.id}`;
+  }
+  if (ticket.ticket_id) {
+    return `ticket-${ticket.ticket_id}`;
+  }
+  return `index-${index}`;
+}
+
 function parseTicketJson(rawText: string): TicketPayload {
   const trimmed = rawText.trim();
   if (!trimmed) {
@@ -388,15 +398,22 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
 
 interface TicketCardProps {
   ticket: Ticket;
+  ticketKey: string;
+  isIncluded: boolean;
+  onIncludedChange: (nextValue: boolean) => void;
 }
 
-function TicketCard({ ticket }: TicketCardProps) {
+function TicketCard({ ticket, ticketKey, isIncluded, onIncludedChange }: TicketCardProps) {
   const imageUrl = useMemo(() => buildImageUrl(ticket.image_large_path), [ticket.image_large_path]);
   const [isTicketIdVisible, setIsTicketIdVisible] = useState(false);
+  const checkboxId = useMemo(
+    () => `include-${ticketKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`,
+    [ticketKey]
+  );
 
   return (
     <article className="space-y-4 rounded-2xl border border-[#C5CCD0] bg-white p-6 shadow-sm transition hover:shadow-md">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex flex-col gap-4 sm:flex-row sm:justify-between">
         <div className="space-y-1">
           <h2 className="text-2xl font-semibold text-[#0068B7]">{resolveTicketName(ticket)}</h2>
           <p className="text-sm text-[#0B1F3B]">
@@ -424,26 +441,49 @@ function TicketCard({ ticket }: TicketCardProps) {
             </span>
           </div>
         </div>
-        {imageUrl && (
-          <div><img
-            src={imageUrl}
-            alt={ticket.item_name || 'チケット画像'}
-            className="h-24 max-w-48 rounded-xl border border-[#D2D7DA] object-contain shadow-sm"
-            referrerPolicy="no-referrer"
-            style={{ backgroundColor: themeColors.gray }}
-          /></div>
-        )}
+        <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:items-end">
+          <label htmlFor={checkboxId} className="flex items-center gap-2 text-sm text-[#0B1F3B]">
+            <input
+              id={checkboxId}
+              type="checkbox"
+              checked={isIncluded}
+              onChange={(event) => onIncludedChange(event.target.checked)}
+              className="h-4 w-4 rounded border-[#C5CCD0] focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40"
+              style={{ accentColor: themeColors.blue }}
+            />
+            <span>集計する</span>
+          </label>
+          {imageUrl && (
+            <div className="self-center sm:self-end">
+              <img
+                src={imageUrl}
+                alt={ticket.item_name || 'チケット画像'}
+                className="h-24 max-w-48 rounded-xl border border-[#D2D7DA] object-contain shadow-sm"
+                referrerPolicy="no-referrer"
+                style={{ backgroundColor: themeColors.gray }}
+              />
+            </div>
+          )}
+        </div>
       </header>
 
-      <section>
-        <h3 className="text-lg font-semibold text-[#0068B7]">入場予約</h3>
-        <TicketSchedules title="入場予約" schedules={ticket.schedules ?? []} type="entrance" />
-      </section>
+      {isIncluded ? (
+        <>
+          <section>
+            <h3 className="text-lg font-semibold text-[#0068B7]">入場予約</h3>
+            <TicketSchedules title="入場予約" schedules={ticket.schedules ?? []} type="entrance" />
+          </section>
 
-      <section>
-        <h3 className="text-lg font-semibold text-[#0068B7]">パビリオン予約</h3>
-        <TicketSchedules title="パビリオン予約" schedules={ticket.event_schedules ?? []} type="event" />
-      </section>
+          <section>
+            <h3 className="text-lg font-semibold text-[#0068B7]">パビリオン予約</h3>
+            <TicketSchedules title="パビリオン予約" schedules={ticket.event_schedules ?? []} type="event" />
+          </section>
+        </>
+      ) : (
+        <div className="rounded-lg border border-dashed border-[#0068B7]/30 bg-white/70 p-4 text-sm text-[#0B1F3B]">
+          このチケットは集計対象外です。チェックを入れると一覧が再表示されます。
+        </div>
+      )}
     </article>
   );
 }
@@ -1555,10 +1595,50 @@ export default function App() {
   const [data, setData] = useState<TicketPayload | null>(null);
   const [error, setError] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
+  const [includedTicketMap, setIncludedTicketMap] = useState<Record<string, boolean>>({});
 
-  const ticketCount = data?.list.length ?? 0;
-  const entranceCount = data?.list.reduce((acc, ticket) => acc + (ticket.schedules?.length ?? 0), 0) ?? 0;
-  const eventCount = data?.list.reduce((acc, ticket) => acc + (ticket.event_schedules?.length ?? 0), 0) ?? 0;
+  useEffect(() => {
+    if (!data) {
+      setIncludedTicketMap({});
+      return;
+    }
+    setIncludedTicketMap((previous) => {
+      const next: Record<string, boolean> = {};
+      data.list.forEach((ticket, index) => {
+        const key = getTicketKey(ticket, index);
+        next[key] = previous[key] ?? true;
+      });
+      return next;
+    });
+  }, [data]);
+
+  const includedTickets = useMemo(() => {
+    if (!data) {
+      return [] as Ticket[];
+    }
+    return data.list.filter((ticket, index) => {
+      const key = getTicketKey(ticket, index);
+      const value = includedTicketMap[key];
+      return value !== false;
+    });
+  }, [data, includedTicketMap]);
+
+  const ticketCount = includedTickets.length;
+  const entranceCount = includedTickets.reduce(
+    (accumulator, ticket) => accumulator + (ticket.schedules?.length ?? 0),
+    0
+  );
+  const eventCount = includedTickets.reduce(
+    (accumulator, ticket) => accumulator + (ticket.event_schedules?.length ?? 0),
+    0
+  );
+
+  const handleTicketIncludedChange = useCallback((ticketKey: string, nextValue: boolean) => {
+    setIncludedTicketMap((previous) => ({
+      ...previous,
+      [ticketKey]: nextValue
+    }));
+  }, []);
 
   const parseAndSet = (raw: string, options?: { fileName?: string }) => {
     setRawInput(raw);
@@ -1707,6 +1787,7 @@ export default function App() {
               <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
               <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
               <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に生成されます。</li>
+              <li>自分以外のチケットが含まれている場合は「集計する」チェックボックスを外して集計対象外にできます。</li>
               <li>製作者が確認できていないデータやマイチケットやチケット一覧APIの仕様変更で、本ツールが正しく動作しなくなる場合があります。</li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -1796,10 +1877,31 @@ export default function App() {
             </div>
 
             <div className="space-y-6">
-              {data.list.map((ticket, index) => (
-                <TicketCard key={ticket.id ?? ticket.ticket_id ?? `ticket-${index}`} ticket={ticket} />
-              ))}
-              <ShareableSummaryCanvas tickets={data.list} entranceCount={entranceCount} eventCount={eventCount} />
+              {data.list.map((ticket, index) => {
+                const ticketKey = getTicketKey(ticket, index);
+                const isIncluded = includedTicketMap[ticketKey] !== false;
+                return (
+                  <TicketCard
+                    key={ticketKey}
+                    ticket={ticket}
+                    ticketKey={ticketKey}
+                    isIncluded={isIncluded}
+                    onIncludedChange={(nextValue) => handleTicketIncludedChange(ticketKey, nextValue)}
+                  />
+                );
+              })}
+              {includedTickets.length > 0 && (
+                <ShareableSummaryCanvas
+                  tickets={includedTickets}
+                  entranceCount={entranceCount}
+                  eventCount={eventCount}
+                />
+              )}
+              {includedTickets.length === 0 && (
+                <div className="rounded-3xl border border-dashed border-[#0068B7]/30 bg-white/80 p-6 text-center text-sm text-[#0B1F3B]">
+                  現在、集計対象のチケットがありません。カードの「集計する」にチェックを入れてください。
+                </div>
+              )}
             </div>
           </section>
         )}
