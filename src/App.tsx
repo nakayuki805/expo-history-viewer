@@ -86,6 +86,8 @@ const themeColors = {
   textGray: '#4B5563'
 };
 
+const MAX_CANVAS_PIXELS = 16777216; // 4096 x 4096
+
 function resolveUseState(value?: number): { label: string; className: string } {
   if (value === undefined || value === null) {
     return { label: '状態不明', className: 'bg-[#D2D7DA] text-[#0B1F3B]' };
@@ -474,14 +476,443 @@ interface SummaryEntranceTable {
   rows: SummaryEntranceTableRow[];
 }
 
+interface SummaryLeftoverEvent {
+  key: string;
+  text: string;
+}
+
+interface SummarySections {
+  headerEnd: number;
+  listStart: number;
+  listEnd: number;
+  summaryStart: number;
+}
+
+interface SummaryData {
+  width: number;
+  height: number;
+  paddingTop: number;
+  paddingBottom: number;
+  lineHeight: number;
+  blankSpacing: number;
+  chartHeight: number;
+  innerPaddingX: number;
+  chartTopMargin: number;
+  chartLabelArea: number;
+  chartBottomMargin: number;
+  beforeStatsSpacing: number;
+  afterStatsSpacing: number;
+  title: string;
+  summaryLabel: string;
+  ticketLines: string[];
+  entranceLines: SummaryEntranceLine[];
+  leftoverEvents: SummaryLeftoverEvent[];
+  monthlyCounts: { month: number; label: string; count: number }[];
+  showDetailed: boolean;
+  entranceTable: SummaryEntranceTable;
+  sections: SummarySections;
+}
+
+interface CanvasSegment {
+  id: string;
+  start: number;
+  height: number;
+}
+
+function renderSummaryContent(context: CanvasRenderingContext2D, summary: SummaryData) {
+  context.save();
+  context.textBaseline = 'top';
+  context.fillStyle = themeColors.gray;
+  context.fillRect(0, 0, summary.width, summary.height);
+
+  const cardX = 40;
+  const cardY = 40;
+  const cardWidth = summary.width - cardX * 2;
+  const cardHeight = summary.height - cardY * 2;
+
+  context.fillStyle = '#ffffff';
+  context.shadowColor = 'rgba(15, 23, 42, 0.08)';
+  context.shadowBlur = 32;
+  context.shadowOffsetY = 24;
+  context.fillRect(cardX, cardY, cardWidth, cardHeight);
+  context.shadowColor = 'transparent';
+
+  let cursorY = summary.paddingTop;
+  const startX = summary.innerPaddingX;
+  const sectionWidth = summary.width - summary.innerPaddingX * 2;
+
+  const drawText = (
+    text: string,
+    options?: { font?: string; color?: string; xOffset?: number; maxWidth?: number }
+  ) => {
+    if (!text) return;
+    const xOffset = options?.xOffset ?? 0;
+    context.font = options?.font ?? '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.fillStyle = options?.color ?? themeColors.darkBlue;
+    context.textAlign = 'left';
+    const maxWidth = options?.maxWidth ?? Math.max(0, sectionWidth - xOffset);
+    context.fillText(text, startX + xOffset, cursorY, maxWidth || undefined);
+    cursorY += summary.lineHeight;
+  };
+
+  const drawEntranceLine = (line: SummaryEntranceLine) => {
+    const baseText = line.baseText || '';
+    const gateText = line.gateLabel || '';
+    const gateColor = line.gateColor ?? themeColors.red;
+
+    context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.textAlign = 'left';
+    context.fillStyle = themeColors.darkBlue;
+
+    const measuredBaseWidth = baseText ? context.measureText(baseText).width : 0;
+    const baseWidth = baseText ? Math.min(measuredBaseWidth, sectionWidth) : 0;
+
+    if (baseText) {
+      context.fillText(baseText, startX, cursorY, sectionWidth);
+    }
+
+    let currentX = startX + baseWidth;
+    const maxX = startX + sectionWidth;
+    if (currentX > maxX) {
+      currentX = maxX;
+    }
+
+    if (baseText && gateText) {
+      const delimiter = ' ｜ ';
+      context.fillStyle = themeColors.darkBlue;
+      context.fillText(delimiter, currentX, cursorY);
+      currentX += context.measureText(delimiter).width;
+    }
+
+    if (gateText) {
+      context.fillStyle = gateColor;
+      context.fillText(gateText, currentX, cursorY);
+    }
+
+    cursorY += summary.lineHeight;
+  };
+
+  const drawSplitLine = (
+    left: string,
+    right: string,
+    options?: { font?: string; xOffset?: number; leftColor?: string; rightColor?: string }
+  ) => {
+    const xOffset = options?.xOffset ?? 0;
+    const totalAvailable = Math.max(0, sectionWidth - xOffset);
+    const gap = 24;
+    const leftWidth = Math.floor((totalAvailable - gap) / 2);
+    const rightWidth = totalAvailable - gap - leftWidth;
+    const baseFont = options?.font ?? '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+    const fontSizeRegex = /(\d+(?:\.\d+)?)px/;
+    const baseFontMatch = baseFont.match(fontSizeRegex);
+    const baseFontSize = baseFontMatch ? Number.parseFloat(baseFontMatch[1]) : 26;
+    const minFontSize = Math.max(10, Math.round((baseFontSize / 2) * 10) / 10);
+    const createFont = (size: number) =>
+      baseFont.replace(fontSizeRegex, `${Math.max(10, Math.round(size * 10) / 10)}px`);
+    const twoLineFont = createFont(minFontSize);
+    const halfLineHeight = summary.lineHeight / 2;
+
+    context.font = baseFont;
+    context.textAlign = 'left';
+
+    context.fillStyle = options?.leftColor ?? themeColors.textGray;
+    if (left) {
+      context.fillText(left, startX + xOffset, cursorY, leftWidth || undefined);
+    }
+
+    context.fillStyle = options?.rightColor ?? themeColors.textGray;
+    if (right) {
+      let singleLineFont: string | null = null;
+      context.font = baseFont;
+      let measuredWidth = context.measureText(right).width;
+      if (measuredWidth <= rightWidth) {
+        singleLineFont = baseFont;
+      } else {
+        for (let size = Math.floor(baseFontSize) - 1; size >= minFontSize; size -= 1) {
+          const candidateFont = createFont(size);
+          context.font = candidateFont;
+          measuredWidth = context.measureText(right).width;
+          if (measuredWidth <= rightWidth) {
+            singleLineFont = candidateFont;
+            break;
+          }
+        }
+      }
+
+      if (singleLineFont) {
+        context.font = singleLineFont;
+        context.fillText(right, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
+      } else {
+        context.font = twoLineFont;
+        const wrapRightText = (text: string): [string, string] => {
+          const findMidSpaceSplit = (value: string): [string, string] | null => {
+            const indices: number[] = [];
+            for (let i = 0; i < value.length; i += 1) {
+              const char = value[i];
+              if (char === ' ' || char === '　') {
+                indices.push(i);
+              }
+            }
+            if (indices.length === 0) {
+              return null;
+            }
+            const middle = (value.length - 1) / 2;
+            let bestIndex = indices[0];
+            let bestDistance = Math.abs(indices[0] - middle);
+            indices.forEach((index) => {
+              const distance = Math.abs(index - middle);
+              if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = index;
+              }
+            });
+            const first = value.slice(0, bestIndex).trimEnd();
+            const second = value.slice(bestIndex + 1).trimStart();
+            if (!first || !second) {
+              return null;
+            }
+            return [first, second];
+          };
+
+          const lines: string[] = [''];
+          for (const char of text) {
+            const currentIndex = lines.length - 1;
+            const candidate = lines[currentIndex] + char;
+            const candidateWidth = context.measureText(candidate).width;
+            if (candidateWidth <= rightWidth || lines[currentIndex] === '') {
+              lines[currentIndex] = candidate;
+            } else if (lines.length < 2) {
+              lines.push(char);
+            } else {
+              let truncated = lines[1];
+              while (truncated.length > 0 && context.measureText(`${truncated}…`).width > rightWidth) {
+                truncated = truncated.slice(0, -1);
+              }
+              lines[1] = truncated.length > 0 ? `${truncated}…` : '…';
+              return [lines[0], lines[1]];
+            }
+          }
+          if (lines.length === 1) {
+            const original = lines[0];
+            const splitBySpace = findMidSpaceSplit(original);
+            if (splitBySpace) {
+              const [first, second] = splitBySpace;
+              if (
+                context.measureText(first).width <= rightWidth &&
+                context.measureText(second).width <= rightWidth
+              ) {
+                return [first, second];
+              }
+            }
+            for (let index = original.length - 1; index > 0; index -= 1) {
+              const first = original.slice(0, index);
+              const second = original.slice(index);
+              if (
+                context.measureText(first).width <= rightWidth &&
+                context.measureText(second).width <= rightWidth
+              ) {
+                return [first, second];
+              }
+            }
+            return [original, ''];
+          }
+          return [lines[0], lines[1] ?? ''];
+        };
+
+        const [firstLine, secondLine] = wrapRightText(right);
+        if (firstLine) {
+          context.fillText(firstLine, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
+        }
+        if (secondLine) {
+          context.fillText(
+            secondLine,
+            startX + xOffset + leftWidth + gap,
+            cursorY + halfLineHeight,
+            rightWidth || undefined
+          );
+        }
+      }
+    }
+
+    cursorY += summary.lineHeight;
+  };
+
+  drawText(summary.title, {
+    font: 'bold 44px "Noto Sans JP", "Yu Gothic", sans-serif',
+    color: themeColors.blue
+  });
+  cursorY += summary.beforeStatsSpacing;
+  drawText(summary.summaryLabel, {
+    font: '32px "Noto Sans JP", "Yu Gothic", sans-serif',
+    color: themeColors.red
+  });
+  cursorY += summary.afterStatsSpacing;
+
+  cursorY += summary.blankSpacing;
+
+  if (summary.showDetailed) {
+    drawText('チケット一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
+    summary.ticketLines.forEach((line) => {
+      drawText(line, { color: themeColors.darkBlue, font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
+    });
+
+    cursorY += summary.blankSpacing;
+
+    drawText('来場スケジュール', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
+    summary.entranceLines.forEach((line) => {
+      drawEntranceLine(line);
+      line.events.forEach((eventLine) => {
+        drawSplitLine(eventLine.left, eventLine.right, {
+          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+          xOffset: 36,
+          leftColor: themeColors.textGray,
+          rightColor: themeColors.textGray
+        });
+      });
+    });
+
+    if (summary.leftoverEvents.length > 0) {
+      cursorY += summary.blankSpacing;
+      drawText('その他パビリオン予約', {
+        font: 'bold 32px "Noto Sans JP", "Yu Gothic", sans-serif',
+        color: themeColors.blue
+      });
+      summary.leftoverEvents.forEach((event) => {
+        drawText(event.text, {
+          color: themeColors.textGray,
+          font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
+          xOffset: 16
+        });
+      });
+    }
+
+    cursorY += summary.blankSpacing;
+  }
+
+  cursorY += summary.blankSpacing;
+  drawText('月別来場回数', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
+
+  const chartTop = cursorY + summary.chartTopMargin;
+  const chartBottom = chartTop + summary.chartHeight;
+  const chartLeft = startX;
+  const chartRight = startX + sectionWidth;
+  const availableHeight = summary.chartHeight;
+  const barCount = summary.monthlyCounts.length;
+  const gap = 24;
+  const totalGap = gap * (barCount - 1);
+  const barWidth = (sectionWidth - totalGap) / barCount;
+  const maxCount = Math.max(...summary.monthlyCounts.map((item) => item.count), 1);
+  const baselineY = chartBottom;
+
+  context.strokeStyle = themeColors.gray;
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(chartLeft, baselineY);
+  context.lineTo(chartRight, baselineY);
+  context.stroke();
+
+  summary.monthlyCounts.forEach((item, index) => {
+    const barHeight = maxCount === 0 ? 0 : (item.count / maxCount) * availableHeight;
+    const barX = chartLeft + index * (barWidth + gap);
+    const barY = baselineY - barHeight;
+
+    context.fillStyle = themeColors.blue;
+    context.fillRect(barX, barY, barWidth, barHeight);
+
+    context.fillStyle = themeColors.textGray;
+    context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.textAlign = 'center';
+    context.fillText(String(item.count), barX + barWidth / 2, barY - 32, barWidth);
+
+    context.fillStyle = themeColors.darkBlue;
+    context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
+    context.fillText(item.label, barX + barWidth / 2, baselineY + 12, barWidth);
+  });
+
+  const tableHeaderY = baselineY + summary.chartLabelArea + summary.chartBottomMargin + summary.blankSpacing / 2;
+  context.textAlign = 'left';
+  context.font = 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif';
+  context.fillStyle = themeColors.blue;
+  context.fillText('入場予約集計表', startX, tableHeaderY, sectionWidth);
+
+  const columnCount = summary.entranceTable.columns.length + 1;
+  const columnWidth = sectionWidth / columnCount;
+  const rowHeight = summary.lineHeight;
+  const totalRows = summary.entranceTable.rows.length + 1;
+  const tableStartX = startX;
+  const tableTop = tableHeaderY + rowHeight;
+  const tableHeight = totalRows * rowHeight;
+  let tableRowY = tableTop;
+
+  context.strokeStyle = themeColors.gray;
+  context.lineWidth = 1;
+
+  context.strokeRect(tableStartX, tableTop, sectionWidth, tableHeight);
+
+  for (let rowIndex = 1; rowIndex < totalRows; rowIndex += 1) {
+    const y = tableTop + rowIndex * rowHeight;
+    context.beginPath();
+    context.moveTo(tableStartX, y);
+    context.lineTo(tableStartX + sectionWidth, y);
+    context.stroke();
+  }
+
+  for (let colIndex = 1; colIndex < columnCount; colIndex += 1) {
+    const x = tableStartX + colIndex * columnWidth;
+    context.beginPath();
+    context.moveTo(x, tableTop);
+    context.lineTo(x, tableTop + tableHeight);
+    context.stroke();
+  }
+
+  context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
+  context.fillStyle = themeColors.darkBlue;
+  context.textAlign = 'left';
+  context.fillText('時間', startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
+
+  context.textAlign = 'center';
+  summary.entranceTable.columns.forEach((columnLabel, index) => {
+    const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
+    context.fillText(columnLabel, cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
+  });
+
+  tableRowY += rowHeight;
+
+  summary.entranceTable.rows.forEach((row) => {
+    context.textAlign = 'left';
+    context.fillStyle = themeColors.darkBlue;
+    context.fillText(row.label, startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
+
+    const values = [row.east, row.west, row.total];
+    context.textAlign = 'center';
+    context.fillStyle = themeColors.textGray;
+    values.forEach((value, index) => {
+      const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
+      context.fillText(String(value), cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
+    });
+
+    tableRowY += rowHeight;
+  });
+
+  cursorY = tableRowY + summary.blankSpacing;
+  context.textAlign = 'left';
+  context.font = '22px "Noto Sans JP", "Yu Gothic", sans-serif';
+  context.fillStyle = themeColors.blue;
+  context.fillText('作成: 万博予約入場履歴ビューアー（非公式）', startX, cursorY, sectionWidth);
+
+  context.restore();
+}
+
 function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: ShareableSummaryCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+  const [segments, setSegments] = useState<CanvasSegment[]>([]);
+  const [displayPixelRatio, setDisplayPixelRatio] = useState<number>(1);
   const [isDetailedView, setIsDetailedView] = useState<boolean>(true);
   const [isSavingImage, setIsSavingImage] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [actionMessage, setActionMessage] = useState<string>('');
 
-  const summary = useMemo(() => {
+  const summary = useMemo<SummaryData | null>(() => {
     if (!Array.isArray(tickets) || tickets.length === 0) {
       return null;
     }
@@ -492,7 +923,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     const lineHeight = 44;
     const blankSpacing = Math.round(lineHeight * 0.7);
     const chartHeight = 240;
-    const chartTopMargin = 16;
+    const chartTopMargin = 24;
     const chartLabelArea = 80;
     const chartBottomMargin = 0;
     const innerPaddingX = 120;
@@ -763,8 +1194,14 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     cursorHeight += lineHeight; // stats
     cursorHeight += afterStatsSpacing;
 
+    const headerEnd = cursorHeight;
+
+    let listStart = headerEnd;
+    let listEnd = headerEnd;
+
     if (showDetailed) {
       cursorHeight += blankSpacing; // gap before tickets
+      listStart = cursorHeight;
       cursorHeight += lineHeight; // ticket heading
       cursorHeight += ticketLines.length * lineHeight;
       cursorHeight += blankSpacing; // gap before schedules
@@ -777,9 +1214,13 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         cursorHeight += lineHeight; // leftover heading
         cursorHeight += leftoverCount * lineHeight;
       }
+
+      listEnd = cursorHeight;
     }
 
     cursorHeight += blankSpacing;
+    const summaryStart = cursorHeight;
+
     cursorHeight += lineHeight; // chart heading
     cursorHeight += chartTopMargin;
     cursorHeight += chartHeight;
@@ -816,9 +1257,110 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       leftoverEvents,
       monthlyCounts,
       showDetailed,
-      entranceTable
+      entranceTable,
+      sections: {
+        headerEnd,
+        listStart,
+        listEnd,
+        summaryStart
+      }
     };
   }, [tickets, entranceCount, eventCount, isDetailedView]);
+
+  useEffect(() => {
+    if (!summary) {
+      setSegments([]);
+      return;
+    }
+
+    const ratio = 1;//Math.min(window.devicePixelRatio || 1, 2);
+    let maxSegmentHeight = Math.floor(MAX_CANVAS_PIXELS / (summary.width * ratio));
+    if (!Number.isFinite(maxSegmentHeight) || maxSegmentHeight < summary.lineHeight) {
+      maxSegmentHeight = summary.lineHeight;
+    }
+    const effectiveMaxHeight = Math.max(summary.lineHeight, maxSegmentHeight);
+
+    const newSegments: CanvasSegment[] = [];
+    const addSegment = (start: number, end: number, alignToLine: boolean) => {
+      if (end <= start) {
+        return;
+      }
+      let current = start;
+      while (current < end) {
+        const remaining = end - current;
+        let height = Math.min(remaining, effectiveMaxHeight);
+        if (alignToLine && height < remaining) {
+          const maxLines = Math.max(1, Math.floor(height / summary.lineHeight));
+          height = maxLines * summary.lineHeight;
+        }
+        if (height <= 0) {
+          height = Math.min(remaining, summary.lineHeight);
+        }
+        height = Math.min(height, remaining);
+        newSegments.push({
+          id: `segment-${newSegments.length}`,
+          start: current,
+          height
+        });
+        current += height;
+      }
+    };
+
+    addSegment(0, summary.sections.headerEnd, false);
+    if (summary.showDetailed && summary.sections.listEnd > summary.sections.listStart) {
+      addSegment(summary.sections.listStart, summary.sections.listEnd, true);
+    }
+    addSegment(summary.sections.summaryStart, summary.height, false);
+
+    setDisplayPixelRatio(ratio);
+    setSegments(newSegments);
+  }, [summary]);
+
+  useEffect(() => {
+    if (!summary || segments.length === 0) {
+      return;
+    }
+
+    canvasRefs.current.length = segments.length;
+
+    segments.forEach((segment, index) => {
+      const canvas = canvasRefs.current[index];
+      if (!canvas) {
+        return;
+      }
+      const context = canvas.getContext('2d');
+      if (!context) {
+        return;
+      }
+
+      const ratio = displayPixelRatio;
+      const width = summary.width;
+      const height = segment.height;
+      const pixelWidth = Math.max(1, Math.floor(width * ratio));
+      const pixelHeight = Math.max(1, Math.floor(height * ratio));
+
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      canvas.style.width = `${width}px`;
+      // canvas.style.height = `${height}px`;
+
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, pixelWidth, pixelHeight);
+      context.restore();
+
+      context.save();
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.beginPath();
+      context.rect(0, 0, width, height);
+      context.clip();
+      context.translate(0, -segment.start);
+      renderSummaryContent(context, summary);
+      context.restore();
+    });
+  }, [summary, segments, displayPixelRatio]);
 
   const shareText = useMemo(
     () => `Expo 2025 来場まとめ\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
@@ -844,21 +1386,33 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     }
   }, []);
 
-  const getCanvasBlob = async (): Promise<Blob> =>
-    await new Promise<Blob>((resolve, reject) => {
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        reject(new Error('画像を取得できませんでした。'));
-        return;
-      }
-      canvas.toBlob((blob) => {
+  const getCanvasBlob = async (): Promise<Blob> => {
+    if (!summary) {
+      throw new Error('画像が生成されていません。');
+    }
+
+    const ratio = displayPixelRatio || 1;
+    const offscreen = document.createElement('canvas');
+    offscreen.width = Math.max(1, Math.floor(summary.width * ratio));
+    offscreen.height = Math.max(1, Math.floor(summary.height * ratio));
+    const context = offscreen.getContext('2d');
+    if (!context) {
+      throw new Error('画像の生成に失敗しました。');
+    }
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    renderSummaryContent(context, summary);
+
+    return await new Promise<Blob>((resolve, reject) => {
+      offscreen.toBlob((blob) => {
         if (blob) {
           resolve(blob);
         } else {
           reject(new Error('画像の生成に失敗しました。'));
         }
-      });
+      }, 'image/png');
     });
+  };
 
   const handleSaveImage = async () => {
     if (isSavingImage) return;
@@ -914,413 +1468,18 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     }
   };
 
-  useEffect(() => {
-    if (!summary || !canvasRef.current) {
-      return;
-    }
-
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      return;
-    }
-
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    canvas.width = summary.width * devicePixelRatio;
-    canvas.height = summary.height * devicePixelRatio;
-    // canvas.style.width = `${summary.width}px`;
-    // canvas.style.height = `${summary.height}px`;
-
-    context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-    context.clearRect(0, 0, summary.width, summary.height);
-    context.textBaseline = 'top';
-
-    // Background
-    context.fillStyle = themeColors.gray;
-    context.fillRect(0, 0, summary.width, summary.height);
-
-    const cardX = 40;
-    const cardY = 40;
-    const cardWidth = summary.width - cardX * 2;
-    const cardHeight = summary.height - cardY * 2;
-
-    context.fillStyle = '#ffffff';
-    context.shadowColor = 'rgba(15, 23, 42, 0.08)';
-    context.shadowBlur = 32;
-    context.shadowOffsetY = 24;
-    context.fillRect(cardX, cardY, cardWidth, cardHeight);
-
-    context.shadowColor = 'transparent';
-
-    let cursorY = summary.paddingTop;
-    const startX = summary.innerPaddingX;
-    const sectionWidth = summary.width - summary.innerPaddingX * 2;
-
-    const drawText = (
-      text: string,
-      options?: { font?: string; color?: string; xOffset?: number; maxWidth?: number }
-    ) => {
-      if (!text) return;
-      const xOffset = options?.xOffset ?? 0;
-      context.font = options?.font ?? '28px "Noto Sans JP", "Yu Gothic", sans-serif';
-      context.fillStyle = options?.color ?? themeColors.darkBlue;
-      context.textAlign = 'left';
-      const maxWidth = options?.maxWidth ?? Math.max(0, sectionWidth - xOffset);
-      context.fillText(text, startX + xOffset, cursorY, maxWidth || undefined);
-      cursorY += summary.lineHeight;
-    };
-
-    const drawEntranceLine = (line: SummaryEntranceLine) => {
-      const baseText = line.baseText || '';
-      const gateText = line.gateLabel || '';
-      const gateColor = line.gateColor ?? themeColors.red;
-
-      context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
-      context.textAlign = 'left';
-      context.fillStyle = themeColors.darkBlue;
-
-      const measuredBaseWidth = baseText ? context.measureText(baseText).width : 0;
-      const baseWidth = baseText ? Math.min(measuredBaseWidth, sectionWidth) : 0;
-
-      if (baseText) {
-        context.fillText(baseText, startX, cursorY, sectionWidth);
-      }
-
-      let currentX = startX + baseWidth;
-      const maxX = startX + sectionWidth;
-      if (currentX > maxX) {
-        currentX = maxX;
-      }
-
-      if (baseText && gateText) {
-        const delimiter = ' ｜ ';
-        context.fillStyle = themeColors.darkBlue;
-        context.fillText(delimiter, currentX, cursorY);
-        currentX += context.measureText(delimiter).width;
-      }
-
-      if (gateText) {
-        context.fillStyle = gateColor;
-        context.fillText(gateText, currentX, cursorY);
-      }
-
-      cursorY += summary.lineHeight;
-    };
-
-    const drawSplitLine = (
-      left: string,
-      right: string,
-      options?: { font?: string; xOffset?: number; leftColor?: string; rightColor?: string }
-    ) => {
-      const xOffset = options?.xOffset ?? 0;
-      const totalAvailable = Math.max(0, sectionWidth - xOffset);
-      const gap = 24;
-      const leftWidth = Math.floor((totalAvailable - gap) / 2);
-      const rightWidth = totalAvailable - gap - leftWidth;
-      const baseFont = options?.font ?? '26px "Noto Sans JP", "Yu Gothic", sans-serif';
-      const fontSizeRegex = /(\d+(?:\.\d+)?)px/;
-      const baseFontMatch = baseFont.match(fontSizeRegex);
-      const baseFontSize = baseFontMatch ? Number.parseFloat(baseFontMatch[1]) : 26;
-      const minFontSize = Math.max(10, Math.round((baseFontSize / 2) * 10) / 10);
-      const createFont = (size: number) =>
-        baseFont.replace(fontSizeRegex, `${Math.max(10, Math.round(size * 10) / 10)}px`);
-      const twoLineFont = createFont(minFontSize);
-      const halfLineHeight = summary.lineHeight / 2;
-
-      context.font = baseFont;
-      context.textAlign = 'left';
-
-      context.fillStyle = options?.leftColor ?? themeColors.textGray;
-      if (left) {
-        context.fillText(left, startX + xOffset, cursorY, leftWidth || undefined);
-      }
-
-      context.fillStyle = options?.rightColor ?? themeColors.textGray;
-      if (right) {
-        let singleLineFont: string | null = null;
-        context.font = baseFont;
-        let measuredWidth = context.measureText(right).width;
-        if (measuredWidth <= rightWidth) {
-          singleLineFont = baseFont;
-        } else {
-          for (let size = Math.floor(baseFontSize) - 1; size >= minFontSize; size -= 1) {
-            const candidateFont = createFont(size);
-            context.font = candidateFont;
-            measuredWidth = context.measureText(right).width;
-            if (measuredWidth <= rightWidth) {
-              singleLineFont = candidateFont;
-              break;
-            }
-          }
-        }
-
-        if (singleLineFont) {
-          context.font = singleLineFont;
-          context.fillText(right, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
-        } else {
-          context.font = twoLineFont;
-          const wrapRightText = (text: string): [string, string] => {
-            const findMidSpaceSplit = (value: string): [string, string] | null => {
-              const indices: number[] = [];
-              for (let i = 0; i < value.length; i += 1) {
-                const char = value[i];
-                if (char === ' ' || char === '　') {
-                  indices.push(i);
-                }
-              }
-              if (indices.length === 0) {
-                return null;
-              }
-              const middle = (value.length - 1) / 2;
-              let bestIndex = indices[0];
-              let bestDistance = Math.abs(indices[0] - middle);
-              indices.forEach((index) => {
-                const distance = Math.abs(index - middle);
-                if (distance < bestDistance) {
-                  bestDistance = distance;
-                  bestIndex = index;
-                }
-              });
-              const first = value.slice(0, bestIndex).trimEnd();
-              const second = value.slice(bestIndex + 1).trimStart();
-              if (!first || !second) {
-                return null;
-              }
-              return [first, second];
-            };
-
-            const lines: string[] = [''];
-            for (const char of text) {
-              const currentIndex = lines.length - 1;
-              const candidate = lines[currentIndex] + char;
-              const candidateWidth = context.measureText(candidate).width;
-              if (candidateWidth <= rightWidth || lines[currentIndex] === '') {
-                lines[currentIndex] = candidate;
-              } else if (lines.length < 2) {
-                lines.push(char);
-              } else {
-                let truncated = lines[1];
-                while (truncated.length > 0 && context.measureText(`${truncated}…`).width > rightWidth) {
-                  truncated = truncated.slice(0, -1);
-                }
-                lines[1] = truncated.length > 0 ? `${truncated}…` : '…';
-                return [lines[0], lines[1]];
-              }
-            }
-            if (lines.length === 1) {
-              const original = lines[0];
-              const splitBySpace = findMidSpaceSplit(original);
-              if (splitBySpace) {
-                const [first, second] = splitBySpace;
-                if (
-                  context.measureText(first).width <= rightWidth &&
-                  context.measureText(second).width <= rightWidth
-                ) {
-                  return [first, second];
-                }
-              }
-              for (let index = original.length - 1; index > 0; index -= 1) {
-                const first = original.slice(0, index);
-                const second = original.slice(index);
-                if (context.measureText(first).width <= rightWidth && context.measureText(second).width <= rightWidth) {
-                  return [first, second];
-                }
-              }
-              return [original, ''];
-            }
-            return [lines[0], lines[1] ?? ''];
-          };
-
-          const [firstLine, secondLine] = wrapRightText(right);
-          if (firstLine) {
-            context.fillText(firstLine, startX + xOffset + leftWidth + gap, cursorY, rightWidth || undefined);
-          }
-          if (secondLine) {
-            context.fillText(
-              secondLine,
-              startX + xOffset + leftWidth + gap,
-              cursorY + halfLineHeight,
-              rightWidth || undefined
-            );
-          }
-        }
-      }
-
-      cursorY += summary.lineHeight;
-    };
-
-    drawText(summary.title, {
-      font: 'bold 44px "Noto Sans JP", "Yu Gothic", sans-serif',
-      color: themeColors.blue
-    });
-    cursorY += summary.beforeStatsSpacing;
-    drawText(summary.summaryLabel, {
-      font: '32px "Noto Sans JP", "Yu Gothic", sans-serif',
-      color: themeColors.red
-    });
-    cursorY += summary.afterStatsSpacing;
-
-    cursorY += summary.blankSpacing;
-
-    if (summary.showDetailed) {
-      drawText('チケット一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
-      summary.ticketLines.forEach((line) => {
-        drawText(line, { color: themeColors.darkBlue, font: '28px "Noto Sans JP", "Yu Gothic", sans-serif' });
-      });
-
-      cursorY += summary.blankSpacing;
-
-      drawText('来場予約一覧', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
-      summary.entranceLines.forEach((line) => {
-        drawEntranceLine(line);
-        line.events.forEach((eventLine) => {
-          drawSplitLine(eventLine.left, eventLine.right, {
-            font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
-            xOffset: 36,
-            leftColor: themeColors.textGray,
-            rightColor: themeColors.textGray
-          });
-        });
-      });
-
-      if (summary.leftoverEvents.length > 0) {
-        cursorY += summary.blankSpacing;
-        drawText('その他パビリオン予約', {
-          font: 'bold 32px "Noto Sans JP", "Yu Gothic", sans-serif',
-          color: themeColors.blue
-        });
-        summary.leftoverEvents.forEach((event) => {
-          drawText(event.text, {
-            color: themeColors.textGray,
-            font: '26px "Noto Sans JP", "Yu Gothic", sans-serif',
-            xOffset: 16
-          });
-        });
-      }
-
-      cursorY += summary.blankSpacing;
-    }
-
-    drawText('月別来場回数', { font: 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif', color: themeColors.blue });
-
-    const chartTop = cursorY + summary.chartTopMargin;
-    const chartBottom = chartTop + summary.chartHeight;
-    const chartLeft = startX;
-    const chartRight = startX + sectionWidth;
-    const availableHeight = summary.chartHeight;
-    const barCount = summary.monthlyCounts.length;
-    const gap = 24;
-    const totalGap = gap * (barCount - 1);
-    const barWidth = (sectionWidth - totalGap) / barCount;
-    const maxCount = Math.max(...summary.monthlyCounts.map((item) => item.count), 1);
-    const baselineY = chartBottom;
-
-    context.strokeStyle = themeColors.gray;
-    context.lineWidth = 2;
-    context.beginPath();
-    context.moveTo(chartLeft, baselineY);
-    context.lineTo(chartRight, baselineY);
-    context.stroke();
-
-    summary.monthlyCounts.forEach((item, index) => {
-      const barHeight = maxCount === 0 ? 0 : (item.count / maxCount) * availableHeight;
-      const barX = chartLeft + index * (barWidth + gap);
-      const barY = baselineY - barHeight;
-
-      context.fillStyle = themeColors.blue;
-      context.fillRect(barX, barY, barWidth, barHeight);
-
-      context.fillStyle = themeColors.textGray;
-      context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
-      context.textAlign = 'center';
-      context.fillText(String(item.count), barX + barWidth / 2, barY - 32, barWidth);
-
-      context.fillStyle = themeColors.darkBlue;
-      context.font = '28px "Noto Sans JP", "Yu Gothic", sans-serif';
-      context.fillText(item.label, barX + barWidth / 2, baselineY + 12, barWidth);
-    });
-
-    const tableHeaderY = baselineY + summary.chartLabelArea + summary.chartBottomMargin + summary.blankSpacing / 2;
-    context.textAlign = 'left';
-    context.font = 'bold 34px "Noto Sans JP", "Yu Gothic", sans-serif';
-    context.fillStyle = themeColors.blue;
-    context.fillText('入場予約集計表', startX, tableHeaderY, sectionWidth);
-
-    const columnCount = summary.entranceTable.columns.length + 1;
-    const columnWidth = sectionWidth / columnCount;
-    const rowHeight = summary.lineHeight;
-    const totalRows = summary.entranceTable.rows.length + 1;
-    const tableStartX = startX;
-    const tableTop = tableHeaderY + rowHeight;
-    const tableHeight = totalRows * rowHeight;
-    let tableRowY = tableTop;
-
-    context.strokeStyle = themeColors.gray;
-    context.lineWidth = 1;
-
-    context.strokeRect(tableStartX, tableTop, sectionWidth, tableHeight);
-
-    for (let rowIndex = 1; rowIndex < totalRows; rowIndex += 1) {
-      const y = tableTop + rowIndex * rowHeight;
-      context.beginPath();
-      context.moveTo(tableStartX, y);
-      context.lineTo(tableStartX + sectionWidth, y);
-      context.stroke();
-    }
-
-    for (let colIndex = 1; colIndex < columnCount; colIndex += 1) {
-      const x = tableStartX + colIndex * columnWidth;
-      context.beginPath();
-      context.moveTo(x, tableTop);
-      context.lineTo(x, tableTop + tableHeight);
-      context.stroke();
-    }
-
-    context.font = '26px "Noto Sans JP", "Yu Gothic", sans-serif';
-    context.fillStyle = themeColors.darkBlue;
-    context.textAlign = 'left';
-    context.fillText('時間', startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
-
-    context.textAlign = 'center';
-    summary.entranceTable.columns.forEach((columnLabel, index) => {
-      const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
-      context.fillText(columnLabel, cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
-    });
-
-    tableRowY += rowHeight;
-
-    summary.entranceTable.rows.forEach((row) => {
-      context.textAlign = 'left';
-      context.fillStyle = themeColors.darkBlue;
-      context.fillText(row.label, startX + columnWidth * 0.1, tableRowY + rowHeight * 0.2, columnWidth);
-
-      const values = [row.east, row.west, row.total];
-      context.textAlign = 'center';
-      context.fillStyle = themeColors.textGray;
-      values.forEach((value, index) => {
-        const cellCenterX = startX + columnWidth * (index + 1) + columnWidth / 2;
-        context.fillText(String(value), cellCenterX, tableRowY + rowHeight * 0.2, columnWidth);
-      });
-
-      tableRowY += rowHeight;
-    });
-
-    cursorY = tableRowY + summary.blankSpacing;
-    context.textAlign = 'left';
-    context.font = '22px "Noto Sans JP", "Yu Gothic", sans-serif';
-    context.fillStyle = themeColors.blue;
-    context.fillText('作成: 万博予約入場履歴ビューアー（非公式）', startX, cursorY, sectionWidth);
-  }, [summary]);
 
   if (!summary) {
     return null;
   }
 
+  canvasRefs.current.length = segments.length;
+
   return (
     <div className="rounded-3xl border border-[#C5CCD0] bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-[#0068B7]">保存・SNS共有用画像</h3>
       <p className="mt-1 text-sm text-[#0B1F3B]">
-        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。<br />iPhoneでデータが多い(大量の予約)場合、画像が生成されず空白になることがあります。修正に向けて調査中です。集計だけの画像であれば生成可能ですので、チケット・来場予約一覧を非表示にしてください。
+        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。
       </p>
       <div className="mt-4 flex items-center justify-end">
         <label className="flex items-center gap-3 text-sm text-[#0B1F3B]">
@@ -1344,7 +1503,18 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
         </label>
       </div>
       <div className="mt-4 overflow-x-auto">
-        <canvas ref={canvasRef} className="max-w-full" />
+        <div className="flex flex-col">
+          {segments.map((segment, index) => (
+            <canvas
+              key={segment.id}
+              ref={(element) => {
+                canvasRefs.current[index] = element;
+              }}
+              className="max-w-full"
+              style={{ display: 'block' }}
+            />
+          ))}
+        </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-3">
         <button
@@ -1368,7 +1538,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       </div>
       {actionMessage && <p className="mt-3 text-xs text-[#0B1F3B]">{actionMessage}</p>}
       {canUseWebShare && <p className="mt-1 text-sm text-[#0B1F3B]">
-        iPhoneに画像を保存する場合、共有ボタンから保存できます。<br />iPhoneで大量の予約がある場合、画像の生成に失敗することがあります。修正に向けて調査中です。一覧の表示をオフにすれば集計だけの画像は生成可能です。
+        iPhoneに画像を保存する場合、共有ボタンから保存できます。
       </p>}
     </div>
   );
