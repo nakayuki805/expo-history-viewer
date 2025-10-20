@@ -216,6 +216,30 @@ function getTicketKey(ticket: Ticket, index: number): string {
   return `index-${index}`;
 }
 
+function mergeTicketPayloads(existing: TicketPayload | null, incoming: TicketPayload): TicketPayload {
+  const merged: Ticket[] = [];
+  const seenIds = new Set<string>();
+
+  const addTicket = (ticket: Ticket) => {
+    const ticketId = ticket.ticket_id?.trim();
+    if (ticketId) {
+      if (seenIds.has(ticketId)) {
+        return;
+      }
+      seenIds.add(ticketId);
+    }
+    merged.push(ticket);
+  };
+
+  if (existing) {
+    existing.list.forEach(addTicket);
+  }
+
+  incoming.list.forEach(addTicket);
+
+  return { list: merged };
+}
+
 function parseTicketJson(rawText: string): TicketPayload {
   const trimmed = rawText.trim();
   if (!trimmed) {
@@ -1640,6 +1664,17 @@ export default function App() {
     }));
   }, []);
 
+  const handleClearInput = useCallback(() => {
+    setRawInput('');
+  }, []);
+
+  const handleClearData = useCallback(() => {
+    setData(null);
+    setIncludedTicketMap({});
+    setFileName('');
+    setError('');
+  }, []);
+
   const parseAndSet = (raw: string, options?: { fileName?: string }) => {
     setRawInput(raw);
     if (options?.fileName !== undefined) {
@@ -1651,10 +1686,9 @@ export default function App() {
       if (!parsed.list || !Array.isArray(parsed.list)) {
         throw new Error('list配列が見つかりませんでした。チケット一覧APIのデータか確認してください。');
       }
-      setData(parsed);
+      setData((previous) => mergeTicketPayloads(previous, parsed));
       setError('');
     } catch (parsingError) {
-      setData(null);
       setError(parsingError instanceof Error ? parsingError.message : '未知のエラーが発生しました。');
     }
   };
@@ -1679,7 +1713,6 @@ export default function App() {
         if (!(result instanceof ArrayBuffer)) {
           setIsLoadingFile(false);
           setError('WebArchiveファイルの読み込みに失敗しました。');
-          setData(null);
           inputEl.value = '';
           return;
         }
@@ -1694,7 +1727,6 @@ export default function App() {
           const parsed = parseTicketJson(embeddedJson);
           parseAndSet(JSON.stringify(parsed, null, 2));
         } catch (parseError) {
-          setData(null);
           setError(
             parseError instanceof Error
               ? parseError.message
@@ -1780,14 +1812,20 @@ export default function App() {
             <ol className="mt-3 list-decimal space-y-1 pl-6 text-sm text-[#0B1F3B]">
               <li>新しいタブでマイチケットにログインし、タブを開いたままにします。</li>
               <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。とても長い記号やアルファベットの羅列によるコード(JSON)が表示されます。</li>
-              <li>表示されたコード(JSON)を最初から最後まで全てコピーするか、そのままファイルとして保存します。<br />iPhoneの場合、Safariの共有メニューを開き、オプションで送信フォーマットをWebアーカイブに選択し、"ファイル"に保存します。</li>
+              <li>
+                PCの場合、表示されたコード(JSON)を最初から最後まで全て選択(Ctrl-A/Cmd-A)しコピーするか、そのままファイルとして保存します。<br />
+                iPhoneの場合、表示されたコードの画面でSafariの共有メニューを開き、オプションで送信フォーマットを「Webアーカイブ」に選択し、「"ファイル"に保存」します。<br />
+                <span className="text-xs text-[#0B1F3B]/70">Android向けの方法は、今後対応予定です。PCと同じ方法でコードのコピーで使用できる場合もあります。</span>
+              </li>
               <li>下のフォームでコード(JSON)を貼り付けるか、先ほど保存したファイルを選択すると内容を解析します。</li>
             </ol>
             <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-[#0B1F3B]">
+              <li>アプリ内ブラウザで開いているときは、外部ブラウザで開いてください。</li>
               <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
               <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
               <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に生成されます。</li>
               <li>自分以外のチケットが含まれている場合は「集計する」チェックボックスを外して集計対象外にできます。</li>
+              <li>通期パス・夏パスの併用等で複数のIDがある場合は、1つのIDでログインして取得したデータの読み込み後、マイチケットをログアウト→ 別のIDでログインして手順を繰り返してください。データを読み込むと既に読み込んだデータと統合され、まとめて集計可能です。</li>
               <li>製作者が確認できていないデータやマイチケットやチケット一覧APIの仕様変更で、本ツールが正しく動作しなくなる場合があります。</li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -1814,30 +1852,53 @@ export default function App() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-3">
-              <label className="flex items-center justify-between text-sm font-medium text-[#0B1F3B]">
-                JSONを貼り付け
-                <button
-                  type="button"
-                  onClick={handleSample}
-                  className="rounded-full border border-[#0068B7] px-3 py-1 text-xs font-semibold text-[#0068B7] transition hover:brightness-110"
-                >
-                  サンプルを読み込む
-                </button>
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label htmlFor="ticket-json-input" className="text-sm font-medium text-[#0B1F3B]">
+                  JSONを貼り付け
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSample}
+                    className="rounded-full border border-[#0068B7] px-3 py-1 text-xs font-semibold text-[#0068B7] transition hover:brightness-110"
+                  >
+                    サンプルを読み込む
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearInput}
+                    className="rounded-full border border-[#C5CCD0] px-3 py-1 text-xs font-semibold text-[#0B1F3B] transition hover:brightness-110"
+                  >
+                    貼り付け欄をクリア
+                  </button>
+                </div>
+              </div>
               <textarea
+                id="ticket-json-input"
                 value={rawInput}
                 onChange={(event) => setRawInput(event.target.value)}
                 rows={14}
                 placeholder="チケット一覧APIのJSONをここに貼り付けてください"
                 className="w-full resize-y rounded-2xl border border-[#C5CCD0] bg-white px-4 py-3 text-sm text-[#0B1F3B] shadow-inner focus:border-[#0068B7] focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40"
               />
-              <button
-                type="button"
-                onClick={handleParse}
-                className="w-full rounded-full bg-[#0068B7] px-4 py-3 text-sm font-semibold text-white shadow transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#0068B7]/50"
-              >
-                この内容で解析する
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleParse}
+                  className="w-full rounded-full bg-[#0068B7] px-4 py-3 text-sm font-semibold text-white shadow transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#0068B7]/50"
+                >
+                  この内容で解析する
+                </button>
+                {data && data.list.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearData}
+                    className="w-full rounded-full border border-[#E60012] px-4 py-3 text-sm font-semibold text-[#E60012] transition hover:bg-[#E60012]/10 focus:outline-none focus:ring-2 focus:ring-[#E60012]/40"
+                  >
+                    データをクリアする
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
