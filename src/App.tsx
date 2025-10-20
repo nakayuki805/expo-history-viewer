@@ -1320,7 +1320,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
     <div className="rounded-3xl border border-[#C5CCD0] bg-white p-6 shadow-sm">
       <h3 className="text-lg font-semibold text-[#0068B7]">保存・SNS共有用画像</h3>
       <p className="mt-1 text-sm text-[#0B1F3B]">
-        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。<br />iPhoneでデータが多い(大量の予約)場合、画像が生成されず空白になることがあります。修正に向けて調査中です。
+        画像の保存{canUseWebShare ? 'や共有' : ''}は下のボタンから実行できます。<br />iPhoneでデータが多い(大量の予約)場合、画像が生成されず空白になることがあります。修正に向けて調査中です。集計だけの画像であれば生成可能ですので、チケット・来場予約一覧を非表示にしてください。
       </p>
       <div className="mt-4 flex items-center justify-end">
         <label className="flex items-center gap-3 text-sm text-[#0B1F3B]">
@@ -1368,7 +1368,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       </div>
       {actionMessage && <p className="mt-3 text-xs text-[#0B1F3B]">{actionMessage}</p>}
       {canUseWebShare && <p className="mt-1 text-sm text-[#0B1F3B]">
-        iPhoneに画像を保存する場合、共有ボタンから保存できます。<br />iPhoneで大量の予約がある場合、画像の生成に失敗することがあります。修正に向けて調査中です。
+        iPhoneに画像を保存する場合、共有ボタンから保存できます。<br />iPhoneで大量の予約がある場合、画像の生成に失敗することがあります。修正に向けて調査中です。一覧の表示をオフにすれば集計だけの画像は生成可能です。
       </p>}
     </div>
   );
@@ -1585,10 +1585,10 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-              <label className="text-sm font-medium text-[#0B1F3B]">ファイルから読み込む（JSON / HTML）</label>
+              <label className="text-sm font-medium text-[#0B1F3B]">ファイルから読み込む（JSON / HTML / WEBARCHIVE）</label>
               <label className="flex w-full min-h-[12rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#0068B7]/40 bg-white p-6 text-center text-sm text-[#0B1F3B] transition hover:border-[#0068B7] hover:text-[#0068B7]">
                 <input type="file" accept=".json,.txt,.html,.htm,.webarchive" className="hidden" onChange={handleFileChange} />
-                <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-semibold text-[#0068B7]">クリックまたはドラッグ＆ドロップ</span>
+                <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-semibold text-[#0068B7]">クリック{/*またはドラッグ＆ドロップ*/}</span>
                 <p>保存したJSONファイル、またはiPhoneのWeb Archiveファイルを読み込めます。</p>
                 {fileName && <p className="font-medium text-[#0068B7]">選択中: {fileName}</p>}
                 {isLoadingFile && <p className="text-[#E60012]">読み込み中...</p>}
