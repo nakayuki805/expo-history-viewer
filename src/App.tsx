@@ -36,6 +36,7 @@ interface EventSchedule extends BaseSchedule {
 
 interface Ticket {
   id?: number;
+  is_sample?: boolean;
   ticket_id?: string;
   item_name?: string;
   item_group_name?: string;
@@ -48,6 +49,7 @@ interface Ticket {
 
 interface TicketPayload {
   list: Ticket[];
+  is_sample?: boolean;
 }
 
 const gateLabels: Record<GateType, string> = {
@@ -102,7 +104,7 @@ function resolveUseState(value?: number): { label: string; className: string } {
 }
 
 const registeredChannelLabels: Record<number, string> = {
-  0: '当日登録端末',
+  0: '当日登録端末・他',
   1: '超早割特別抽選',
   2: '2ヶ月前抽選',
   3: '7日前抽選',
@@ -219,8 +221,12 @@ function getTicketKey(ticket: Ticket, index: number): string {
 function mergeTicketPayloads(existing: TicketPayload | null, incoming: TicketPayload): TicketPayload {
   const merged: Ticket[] = [];
   const seenIds = new Set<string>();
+  const isNotSample = incoming.is_sample !== true;
 
   const addTicket = (ticket: Ticket) => {
+    if (isNotSample && ticket.is_sample === true) {
+      return;
+    }
     const ticketId = ticket.ticket_id?.trim();
     if (ticketId) {
       if (seenIds.has(ticketId)) {
@@ -283,9 +289,10 @@ interface TicketSchedulesProps {
   title: string;
   schedules?: (EntranceSchedule | EventSchedule)[] | null;
   type: 'entrance' | 'event';
+  ticketId?: string;
 }
 
-function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
+function TicketSchedules({ title, schedules, type, ticketId }: TicketSchedulesProps) {
   const orderedSchedules = useMemo(() => {
     if (!Array.isArray(schedules) || schedules.length === 0) {
       return [] as (EntranceSchedule | EventSchedule)[];
@@ -313,19 +320,19 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
   return (
     <div className="space-y-3">
       {orderedSchedules.map((schedule, index) => {
-        const keySource =
-          'user_visiting_reservation_id' in schedule && schedule.user_visiting_reservation_id
-            ? schedule.user_visiting_reservation_id
-            : schedule.id;
+        const user_visiting_reservation_id = 'user_visiting_reservation_id' in schedule ? schedule.user_visiting_reservation_id : undefined;
+        const keySource = user_visiting_reservation_id || schedule.id;
         const key = `${type}-${keySource ?? `schedule-${index}`}`;
         const stateDisplay = resolveUseState(schedule.use_state);
         const isEvent = type === 'event';
-        const dateLabel = formatDate(schedule.entrance_date);
+        const entrance_date = schedule.entrance_date;
+        const dateLabel = formatDate(entrance_date);
         const timeLabel = schedule.schedule_name || (schedule.start_time ? formatTime(schedule.start_time) : '');
         const entranceTitle = dateLabel !== '未設定' ? dateLabel : '日付未設定';
         const titleText = isEvent
           ? (resolvePavilionName((schedule as EventSchedule).program_code ?? '', (schedule as EventSchedule).event_name) || timeLabel)
           : entranceTitle;
+        const qrCodeUrl = (!isEvent && user_visiting_reservation_id && entrance_date) ? `https://ticket.expo2025.or.jp/publish_qrcode/?id=${ticketId}&reserve_id=${user_visiting_reservation_id}&entrance_date=${entrance_date}` : undefined;
         const gateLabel = !isEvent && (schedule as EntranceSchedule).gate_type !== undefined
           ? gateLabels[(schedule as EntranceSchedule).gate_type as GateType] ??
             `ゲート種別: ${(schedule as EntranceSchedule).gate_type}`
@@ -372,7 +379,7 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
               </div>
             )}
 
-            <dl className="mt-3 grid gap-2 text-sm text-[#0B1F3B] sm:grid-cols-2">
+            <dl className="mt-3 grid gap-2 text-sm text-[#0B1F3B] grid-cols-2">
               {schedule.admission_time && (
                 <div>
                   <dt className="font-medium text-[#0068B7]">入場時刻</dt>
@@ -386,7 +393,7 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
                 </div>
               )}
               {isEvent && schedule.start_time && (
-                <div>
+                <div className='col-start-1'>
                   <dt className="font-medium text-[#0068B7]">開始時刻</dt>
                   <dd>{formatTime(schedule.start_time)}</dd>
                 </div>
@@ -408,6 +415,21 @@ function TicketSchedules({ title, schedules, type }: TicketSchedulesProps) {
                       className="text-[#4B5563] hover:underline"
                     >
                       {(schedule as EventSchedule).portal_url_desc || '詳細を確認'}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {qrCodeUrl && (
+                <div>
+                  <dt className="font-medium text-[#0068B7]">QRコード印刷</dt>
+                  <dd>
+                    <a
+                      href={qrCodeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#4B5563] hover:underline"
+                    >
+                      印刷ページ
                     </a>
                   </dd>
                 </div>
@@ -463,6 +485,9 @@ function TicketCard({ ticket, ticketKey, isIncluded, onIncludedChange }: TicketC
             <span className="rounded-full bg-[#D2D7DA] px-3 py-1 font-medium text-[#0068B7]">
               パビリオン予約: {ticket.event_schedules?.length ?? 0}
             </span>
+            {ticket.is_sample && <span className="rounded-full bg-[#D2D7DA] px-3 py-1 font-medium text-[#E60012]">
+              サンプルデータ
+            </span>}
           </div>
         </div>
         <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:items-end">
@@ -495,12 +520,12 @@ function TicketCard({ ticket, ticketKey, isIncluded, onIncludedChange }: TicketC
         <>
           <section>
             <h3 className="text-lg font-semibold text-[#0068B7]">入場予約</h3>
-            <TicketSchedules title="入場予約" schedules={ticket.schedules ?? []} type="entrance" />
+            <TicketSchedules title="入場予約" schedules={ticket.schedules ?? []} type="entrance" ticketId={ticket.ticket_id} />
           </section>
 
           <section>
             <h3 className="text-lg font-semibold text-[#0068B7]">パビリオン予約</h3>
-            <TicketSchedules title="パビリオン予約" schedules={ticket.event_schedules ?? []} type="event" />
+            <TicketSchedules title="パビリオン予約" schedules={ticket.event_schedules ?? []} type="event" ticketId={ticket.ticket_id} />
           </section>
         </>
       ) : (
@@ -1432,7 +1457,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
   }, [summary, segments, displayPixelRatio]);
 
   const shareText = useMemo(
-    () => `Expo 2025 来場まとめ\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回`,
+    () => `Expo 2025 万博予約入場履歴まとめ\n入場予約 ${entranceCount}回 ｜ パビリオン予約 ${eventCount}回\nhttps://www.nakayuki.net/expo-history-viewer/`,
     [entranceCount, eventCount]
   );
 
@@ -1519,7 +1544,7 @@ function ShareableSummaryCanvas({ tickets, entranceCount, eventCount }: Shareabl
       }
       const file = new File([blob], 'expo-visit-summary.png', { type: 'image/png' });
       const data: ShareData = {
-        title: 'Expo 2025 来場まとめ',
+        title: 'Expo 2025 万博予約入場履歴まとめ',
         text: shareText,
         files: [file]
       };
@@ -1781,7 +1806,7 @@ export default function App() {
               </p>
             </div>
             <div className="text-right text-sm text-white/90">
-              <p>最終更新: 2024年10月16日</p>
+              <p>最終更新: 2024年10月21日</p>
               {/* <p>バージョン 0.1.0</p> */}
             </div>
           </div>
@@ -1813,9 +1838,9 @@ export default function App() {
               <li>新しいタブでマイチケットにログインし、タブを開いたままにします。</li>
               <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。とても長い記号やアルファベットの羅列によるコード(JSON)が表示されます。</li>
               <li>
-                PCの場合、表示されたコード(JSON)を最初から最後まで全て選択(Ctrl-A/Cmd-A)しコピーするか、そのままファイルとして保存します。<br />
+                PC・Androidの場合、表示されたコード(JSON)を最初から最後まで全て選択(Ctrl-A/Cmd-A)しコピーするか、そのままファイルとして保存します。<br />
                 iPhoneの場合、表示されたコードの画面でSafariの共有メニューを開き、オプションで送信フォーマットを「Webアーカイブ」に選択し、「"ファイル"に保存」します。<br />
-                <span className="text-xs text-[#0B1F3B]/70">Android向けの方法は、今後対応予定です。PCと同じ方法でコードのコピーで使用できる場合もあります。</span>
+                <span className="text-xs text-[#0B1F3B]/70">Androidでデータが大きい場合、コピーが途中で切れて読み込めないことがあります。より確実な方法を追加する予定です。</span>
               </li>
               <li>下のフォームでコード(JSON)を貼り付けるか、先ほど保存したファイルを選択すると内容を解析します。</li>
             </ol>
@@ -1857,13 +1882,13 @@ export default function App() {
                   JSONを貼り付け
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  {(!data || data.list.length == 0) &&<button
                     type="button"
                     onClick={handleSample}
                     className="rounded-full border border-[#0068B7] px-3 py-1 text-xs font-semibold text-[#0068B7] transition hover:brightness-110"
                   >
                     サンプルを読み込む
-                  </button>
+                  </button>}
                   <button
                     type="button"
                     onClick={handleClearInput}

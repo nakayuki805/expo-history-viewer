@@ -2,6 +2,7 @@
   "list": [
     {
       "id": 1000001,
+      "is_sample": true,
       "ticket_id": "TICKET0001",
       "agent_code": "0010",
       "item_group_code": "0009",
@@ -52,6 +53,7 @@
     },
     {
       "id": 1000002,
+      "is_sample": true,
       "ticket_id": "TICKET0002",
       "agent_code": "0010",
       "item_group_code": "0014",
@@ -489,5 +491,6 @@
       "adult_type": true,
       "disp_bid_status": 2
     }
-  ]
+  ],
+  "is_sample": true
 }
