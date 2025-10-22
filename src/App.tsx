@@ -90,6 +90,233 @@ const themeColors = {
 
 const MAX_CANVAS_PIXELS = 16777216; // 4096 x 4096
 
+const MY_TICKET_URL = 'https://ticket.expo2025.or.jp/myticket/';
+const TICKET_API_URL = 'https://ticket.expo2025.or.jp/api/d/my/tickets/';
+const DEFAULT_VIEWER_URL = 'https://www.nakayuki.net/expo-history-viewer/';
+
+type InstructionMethod = 'bookmarklet' | 'file' | 'copy';
+
+interface InstructionAction {
+  label: string;
+  href: string;
+  target: string;
+}
+
+interface InstructionStep {
+  heading: string;
+  body?: string;
+  actions?: InstructionAction[];
+  showBookmarkletCode?: boolean;
+  showCopyShortcutBadges?: boolean;
+  showSaveShortcutBadges?: boolean;
+}
+
+interface InstructionDefinition {
+  label: string;
+  description: string;
+  steps: InstructionStep[];
+  notes?: string[];
+}
+
+const instructionDefinitions: Record<InstructionMethod, InstructionDefinition> = {
+  bookmarklet: {
+    label: 'ブックマークレット',
+    description: 'Android・PC向け(Safari不可)',
+    steps: [
+      {
+        heading: 'ブックマークレットをブラウザに登録',
+        body: 'このページをブラウザ(Chrome等)のブックマーク(お気に入り)に登録します。\n次に下のコードをコピーします。\nそして、ブックマーク一覧から先ほど登録したブックマークを編集し、URL欄に元のURLを消してコピーしたコードを貼り付けて保存します。\n(一度保存したら次回からはこのステップは不要です)',
+        showBookmarkletCode: true
+      },
+      {
+        heading: 'マイチケットにログイン',
+        body: '下の「マイチケットを開く」ボタンからページを開き、普段どおりログインします。',
+        actions: [
+          {
+            label: 'マイチケットを開く',
+            href: MY_TICKET_URL,
+            target: 'myticket'
+          }
+        ]
+      },
+      {
+        heading: 'ブックマークレットを実行',
+        body: 'ログイン後のマイチケットの画面で先ほど編集したブックマークを開くと、自動でこのビューアーに履歴データが読み込まれますので、このビューアーのタブに戻ってきてください。'
+      }
+    ],
+    notes: [
+      'ブックマークレットは大きな JSON でもコピーせずに送信できます。',
+      'ポップアップがブロックされた場合は、ポップアップを許可してから再度ブックマークを実行してください。',
+      'Safari では動作しません。iPhone の方はファイルを読み込む方法をお試しください。',
+    ]
+  },
+  file: {
+    label: 'ファイルを読み込む',
+    description: '一度ファイルに保存する方法です。iPhoneもOK',
+    steps: [
+      {
+        heading: 'マイチケットにログイン',
+        body: '下の「マイチケットを開く」ボタンからログインページを開きます。',
+        actions: [
+          {
+            label: 'マイチケットを開く',
+            href: MY_TICKET_URL,
+            target: 'myticket'
+          }
+        ]
+      },
+      {
+        heading: 'チケット一覧APIを開く',
+        body: '下の「チケット一覧APIを開く」ボタンからページを表示し、画面いっぱいに文字の羅列によるコード(JSON)が表示されていることを確認します。',
+        actions: [
+          {
+            label: 'チケット一覧APIを開く',
+            href: TICKET_API_URL,
+            target: '_blank'
+          }
+        ]
+      },
+      {
+        heading: 'ファイルに保存',
+        body: 'コード(JSON)が表示されている画面をファイルに保存します。(PDFで保存は不可)\niPhone の場合はSafariの共有メニューを開き、オプションで「Webアーカイブ」を選択して完了を押します。そして、「"ファイル"に保存」を押して任意の場所に保存します。\nPCの場合は、下のショートカットキーを参考にしてください。',
+        showSaveShortcutBadges: true
+      },
+      {
+        heading: 'このページでファイルを選択',
+        body: '「ファイルから読み込む」エリアをクリックし、先ほど保存したファイルを選びます。'
+      },
+      {
+        heading: '解析完了を待つ',
+        body: '読み込みが終わるとデータが自動で解析され、一覧に追加されます。'
+      }
+    ],
+    notes: [
+      'PCでファイル名に拡張子が付いていない場合は .json を付けると読み込みやすくなります。',
+      'この方法では公式API側の仕様で言語指定ができないため、一部の情報は英語表記になります。',
+    ]
+  },
+  copy: {
+    label: 'JSONをコピペ',
+    description: 'PCなら手軽',
+    steps: [
+      {
+        heading: 'マイチケットにログイン',
+        body: '下の「マイチケットを開く」ボタンからログインページを開きます。',
+        actions: [
+          {
+            label: 'マイチケットを開く',
+            href: MY_TICKET_URL,
+            target: 'myticket'
+          }
+        ]
+      },
+      {
+        heading: 'チケット一覧APIを開く',
+        body: '下の「チケット一覧APIを開く」ボタンからページを表示し、画面いっぱいに文字の羅列によるコード(JSON)が表示されていることを確認します。',
+        actions: [
+          {
+            label: 'チケット一覧APIを開く',
+            href: TICKET_API_URL,
+            target: '_blank'
+          }
+        ]
+      },
+      {
+        heading: '全選択してコピー',
+        body: 'コード(JSON)を全選択してまるごとコピーします。下のショートカットキーを参考にしてください。',
+        showCopyShortcutBadges: true
+      },
+      {
+        heading: 'ビューアーに貼り付けて解析',
+        body: 'このページの「JSONを貼り付け」欄にペーストし、「この内容で解析する」を押します。'
+      }
+    ],
+    notes: [
+      'Android では JSON が長いと途中でコピーが途切れることがあります。うまくいかない場合はブックマークレットやファイル保存を利用してください。',
+      '貼り付け前に余計な文字が混ざっていないか確認してください。',
+      'この方法では公式API側の仕様で言語指定ができないため、一部の情報は英語表記になります。',
+    ]
+  }
+};
+
+const instructionOrder: InstructionMethod[] = ['file', 'bookmarklet', 'copy'];
+
+function createBookmarklet(viewerUrl: string, apiUrl: string): string {
+  const escapeSingleQuote = (value: string) => value.replace(/'/g, "\\'");
+  const escapedViewer = escapeSingleQuote(viewerUrl);
+  const viewerOrigin = escapeSingleQuote(new URL(viewerUrl).origin);
+  const escapedApi = escapeSingleQuote(apiUrl);
+  const script = `(async()=>{const viewerUrl='${escapedViewer}';const viewerOrigin='${viewerOrigin}';const apiUrl='${escapedApi}';const fileName=()=>{const now=new Date();const pad=(v)=>String(v).padStart(2,'0');return\`tickets-\${now.getFullYear()}\${pad(now.getMonth()+1)}\${pad(now.getDate())}-\${pad(now.getHours())}\${pad(now.getMinutes())}\${pad(now.getSeconds())}.json\`;};const send=(target,data)=>{target.postMessage({type:'expo-history-viewer:data',json:data,fileName:fileName()},viewerOrigin);};const notify=(message)=>window.alert(message);try{const response=await fetch(apiUrl,{credentials:'include',headers:{'x-api-lang':'ja','accept':'application/json'}});if(!response.ok){throw new Error('HTTP '+response.status);}const payload=await response.text();const tryOpener=()=>{if(!window.opener||window.opener.closed){return false;}try{send(window.opener,payload);notify('データを送信しました。ビューアーをご確認ください。');return true;}catch(error){console.warn(error);return false;}};if(tryOpener()){return;}const viewer=window.open(viewerUrl,'expo-history-viewer');if(!viewer){notify('ビューアーを開けませんでした。ポップアップを許可してください。');return;}let finished=false;const cleanup=()=>{if(finished){return;}finished=true;window.removeEventListener('message',onMessage);window.clearTimeout(initialTryId);window.clearTimeout(timeoutId);};const complete=()=>{cleanup();notify('データを送信しました。ビューアーをご確認ください。');};const sendToViewer=()=>{if(finished){return;}try{send(viewer,payload);complete();}catch(error){console.debug('postMessage retry',error);}};const onMessage=(event)=>{if(event.source===viewer&&event.data&&event.data.type==='expo-history-viewer:ready'){sendToViewer();}};window.addEventListener('message',onMessage);const initialTryId=window.setTimeout(sendToViewer,600);const timeoutId=window.setTimeout(()=>{if(!finished){cleanup();notify('データを送信できませんでした。ビューアーが開いているか確認してください。');}},10000);}catch(error){console.error(error);notify('データの取得に失敗しました。ログイン状態を確認してください。');}})();`;
+  return `javascript:${script.replace(/\s+/g, ' ')}`;
+}
+
+function ShortcutBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center justify-center rounded-md border border-[#C5CCD0] bg-white px-2 py-1 text-xs font-semibold text-[#0B1F3B] shadow-sm">
+      {label}
+    </span>
+  );
+}
+
+function ShortcutBadges({ type }: { type: 'save' | 'copy' }) {
+  const [isMac, setIsMac] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') {
+      setIsMac(null);
+      return;
+    }
+    const platform = navigator.platform || '';
+    const userAgent = navigator.userAgent || '';
+    const macPatterns = ['Mac', 'iPhone', 'iPad'];
+    const detected = macPatterns.some((pattern) => platform.includes(pattern) || userAgent.includes(pattern));
+    setIsMac(detected);
+  }, []);
+
+  const shortcuts = type === 'copy' ? (isMac
+    ? [
+        { label: '全選択', combo: ['⌘', 'A'] },
+        { label: 'コピー', combo: ['⌘', 'C'] }
+      ]
+    : [
+        { label: '全選択', combo: ['Ctrl', 'A'] },
+        { label: 'コピー', combo: ['Ctrl', 'C'] }
+      ]
+    ) : (isMac
+    ? [
+        { label: '保存', combo: ['⌘', 'S'] },
+      ]
+    : [
+        { label: '保存', combo: ['Ctrl', 'S'] },
+      ]
+    );
+
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-[#0068B7]/20 bg-white/80 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#0068B7]">
+        {isMac === null ? 'ショートカット' : isMac ? 'Macショートカット' : 'Windows / その他'}
+      </p>
+      <div className="flex flex-wrap gap-3">
+        {shortcuts.map((item) => (
+          <div key={item.label} className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-[#0B1F3B]">{item.label}</span>
+            <div className="flex items-center gap-1">
+              {item.combo.map((part, index) => (
+                <ShortcutBadge key={`${item.label}-${part}-${index}`} label={part} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {isMac === null && (
+        <p className="text-xs text-[#0B1F3B]/70">
+          ブラウザや端末によってショートカットが異なる場合があります。
+        </p>
+      )}
+    </div>
+  );
+}
+
 function resolveUseState(value?: number): { label: string; className: string } {
   if (value === undefined || value === null) {
     return { label: '状態不明', className: 'bg-[#D2D7DA] text-[#0B1F3B]' };
@@ -1645,6 +1872,27 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
   const [includedTicketMap, setIncludedTicketMap] = useState<Record<string, boolean>>({});
+  const [instructionMethod, setInstructionMethod] = useState<InstructionMethod>('file');
+  const viewerUrlForBookmarklet = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_VIEWER_URL;
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      return url.toString();
+    } catch {
+      return DEFAULT_VIEWER_URL;
+    }
+  }, []);
+  const bookmarkletCode = useMemo(
+    () => createBookmarklet(viewerUrlForBookmarklet, TICKET_API_URL),
+    [viewerUrlForBookmarklet]
+  );
+  const bookmarkletTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const bookmarkletCopyTimeoutRef = useRef<number | null>(null);
+  const [isBookmarkletCopied, setIsBookmarkletCopied] = useState(false);
 
   useEffect(() => {
     if (!data) {
@@ -1660,6 +1908,12 @@ export default function App() {
       return next;
     });
   }, [data]);
+
+  useEffect(() => () => {
+    if (bookmarkletCopyTimeoutRef.current !== null) {
+      window.clearTimeout(bookmarkletCopyTimeoutRef.current);
+    }
+  }, []);
 
   const includedTickets = useMemo(() => {
     if (!data) {
@@ -1682,6 +1936,8 @@ export default function App() {
     0
   );
 
+  const currentInstruction = instructionDefinitions[instructionMethod];
+
   const handleTicketIncludedChange = useCallback((ticketKey: string, nextValue: boolean) => {
     setIncludedTicketMap((previous) => ({
       ...previous,
@@ -1700,7 +1956,55 @@ export default function App() {
     setError('');
   }, []);
 
-  const parseAndSet = (raw: string, options?: { fileName?: string }) => {
+  const handleCopyBookmarklet = useCallback(async () => {
+    const scheduleReset = () => {
+      if (bookmarkletCopyTimeoutRef.current !== null) {
+        window.clearTimeout(bookmarkletCopyTimeoutRef.current);
+      }
+      bookmarkletCopyTimeoutRef.current = window.setTimeout(() => {
+        setIsBookmarkletCopied(false);
+        bookmarkletCopyTimeoutRef.current = null;
+      }, 2000);
+    };
+
+    const markCopied = () => {
+      setIsBookmarkletCopied(true);
+      scheduleReset();
+    };
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(bookmarkletCode);
+        markCopied();
+        return;
+      }
+    } catch (clipboardError) {
+      console.warn('Clipboard API failed, falling back to execCommand.', clipboardError);
+    }
+
+    const textarea = bookmarkletTextareaRef.current;
+    if (!textarea) {
+      alert('コピーできませんでした。テキストを選択して手動でコピーしてください。');
+      return;
+    }
+
+    textarea.focus();
+    textarea.select();
+
+    try {
+      const successful = document.execCommand ? document.execCommand('copy') : false;
+      if (successful) {
+        markCopied();
+        return;
+      }
+    } catch (execError) {
+      console.warn('document.execCommand("copy") failed.', execError);
+    }
+
+    alert('コピーできませんでした。テキストを選択して手動でコピーしてください。');
+  }, [bookmarkletCode]);
+
+  const parseAndSet = useCallback((raw: string, options?: { fileName?: string }) => {
     setRawInput(raw);
     if (options?.fileName !== undefined) {
       setFileName(options.fileName);
@@ -1716,7 +2020,105 @@ export default function App() {
     } catch (parsingError) {
       setError(parsingError instanceof Error ? parsingError.message : '未知のエラーが発生しました。');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+      if (message === null || message === undefined) {
+        return;
+      }
+
+      const setFromRawText = (rawText: string, fileNameFromMessage?: string) => {
+        const trimmed = rawText.trim();
+        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+          return;
+        }
+        const options = fileNameFromMessage ? { fileName: fileNameFromMessage } : undefined;
+        parseAndSet(rawText, options);
+      };
+
+      const setFromPayload = (payload: TicketPayload, fileNameFromMessage?: string) => {
+        const pretty = JSON.stringify(payload, null, 2);
+        const options = fileNameFromMessage ? { fileName: fileNameFromMessage } : undefined;
+        parseAndSet(pretty, options);
+      };
+
+      if (typeof message === 'string') {
+        setFromRawText(message);
+        return;
+      }
+
+      if (typeof message !== 'object') {
+        return;
+      }
+
+      if (isTicketPayload(message)) {
+        setFromPayload(message);
+        return;
+      }
+
+      const record = message as Record<string, unknown>;
+      const type = typeof record.type === 'string' ? record.type : undefined;
+      if (type === 'expo-history-viewer:ready') {
+        return;
+      }
+      const fileNameFromMessage = typeof record.fileName === 'string' ? record.fileName : undefined;
+
+      if (type === 'expo-history-viewer:data') {
+        if (typeof record.json === 'string') {
+          setFromRawText(record.json, fileNameFromMessage);
+          return;
+        }
+        if (record.payload && isTicketPayload(record.payload)) {
+          setFromPayload(record.payload, fileNameFromMessage);
+          return;
+        }
+      }
+
+      const stringCandidates = [
+        record.json,
+        record.payload,
+        record.data,
+        record.text,
+        record.raw
+      ];
+
+      for (const candidate of stringCandidates) {
+        if (typeof candidate === 'string') {
+          setFromRawText(candidate, fileNameFromMessage);
+          return;
+        }
+      }
+
+      const payloadCandidates = [
+        record.payload,
+        record.data,
+        record.ticketPayload
+      ];
+
+      for (const candidate of payloadCandidates) {
+        if (candidate && isTicketPayload(candidate)) {
+          setFromPayload(candidate, fileNameFromMessage);
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    if (window.opener && typeof window.opener.postMessage === 'function') {
+      try {
+        window.opener.postMessage({ type: 'expo-history-viewer:ready' }, '*');
+      } catch {
+        // 念のためクロスオリジン等で失敗しても無視する
+      }
+    }
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [parseAndSet]);
 
   const handleParse = () => {
     parseAndSet(rawInput);
@@ -1834,25 +2236,119 @@ export default function App() {
 
           <div>
             <h2 className="text-xl font-semibold text-[#0068B7]">使い方</h2>
-            <ol className="mt-3 list-decimal space-y-1 pl-6 text-sm text-[#0B1F3B]">
-              <li>新しいタブでマイチケットにログインし、タブを開いたままにします。</li>
-              <li>次に下の方にある「チケット一覧APIを開く」ボタンを押します。とても長い記号やアルファベットの羅列によるコード(JSON)が表示されます。</li>
-              <li>
-                PC・Androidの場合、表示されたコード(JSON)を最初から最後まで全て選択(Ctrl-A/Cmd-A)しコピーするか、そのままファイルとして保存します。<br />
-                iPhoneの場合、表示されたコードの画面でSafariの共有メニューを開き、オプションで送信フォーマットを「Webアーカイブ」に選択し、「"ファイル"に保存」します。<br />
-                <span className="text-xs text-[#0B1F3B]/70">Androidでデータが大きい場合、コピーが途中で切れて読み込めないことがあります。より確実な方法を追加する予定です。</span>
-              </li>
-              <li>下のフォームでコード(JSON)を貼り付けるか、先ほど保存したファイルを選択すると内容を解析します。</li>
-            </ol>
-            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-[#0B1F3B]">
-              <li>アプリ内ブラウザで開いているときは、外部ブラウザで開いてください。</li>
-              <li><code>{`{"message":"Unauthorized"}`}</code>という短いコード(JSON)が表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。</li>
-              <li>上記の方法でJSONを取得した場合、言語の指定ができず英語になるため、一部の情報が英語表記になります。ご了承ください。</li>
-              <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に生成されます。</li>
-              <li>自分以外のチケットが含まれている場合は「集計する」チェックボックスを外して集計対象外にできます。</li>
-              <li>通期パス・夏パスの併用等で複数のIDがある場合は、1つのIDでログインして取得したデータの読み込み後、マイチケットをログアウト→ 別のIDでログインして手順を繰り返してください。データを読み込むと既に読み込んだデータと統合され、まとめて集計可能です。</li>
-              <li>製作者が確認できていないデータやマイチケットやチケット一覧APIの仕様変更で、本ツールが正しく動作しなくなる場合があります。</li>
-            </ul>
+            <p className="mt-2 text-sm text-[#0B1F3B]">
+              ご自身の端末に合わせて、履歴データの取得方法を選んでください。もしうまくできなかったら、他の方法も試してみてください。
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {instructionOrder.map((method) => {
+                const definition = instructionDefinitions[method];
+                const isActive = method === instructionMethod;
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setInstructionMethod(method)}
+                    className={`flex min-w-[10rem] flex-1 flex-col items-start gap-1 rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40 sm:min-w-[12rem] ${
+                      isActive
+                        ? 'border-[#0068B7] bg-[#0068B7] text-white shadow'
+                        : 'border-[#0068B7]/30 bg-white text-[#0068B7] hover:border-[#0068B7]'
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    <span className="text-sm font-semibold">{definition.label}</span>
+                    <span className={`text-xs ${isActive ? 'text-white/80' : 'text-[#0B1F3B]/70'}`}>
+                      {definition.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-5 space-y-4 rounded-2xl border border-[#0068B7]/30 bg-[#F8FAFC] p-5">
+              <ol className="list-decimal space-y-3 pl-6 text-sm text-[#0B1F3B]">
+                {currentInstruction.steps.map((step, index) => (
+                  <li key={`${instructionMethod}-step-${index}`}>
+                    <p className="font-semibold text-[#0068B7]">{step.heading}</p>
+                    {step.body && <p className="mt-1 leading-relaxed text-[#0B1F3B] whitespace-pre-wrap">{step.body}</p>}
+                    {step.actions && step.actions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {step.actions.map((action, actionIndex) => (
+                          <a
+                            key={`${instructionMethod}-step-${index}-action-${actionIndex}`}
+                            href={action.href}
+                            target={action.target}
+                            rel={action.target === '_blank' ? 'noreferrer' : undefined}
+                            className="inline-flex items-center gap-1 rounded-full border border-[#0068B7] px-3 py-1 text-xs font-semibold text-[#0068B7] transition hover:brightness-110"
+                          >
+                            {action.label}
+                            <span aria-hidden="true">&gt;</span>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {step.showCopyShortcutBadges && (
+                      <ShortcutBadges type={"copy"} />
+                    )}
+                    {step.showSaveShortcutBadges && (
+                      <ShortcutBadges type={"save"} />
+                    )}
+                    {step.showBookmarkletCode && (
+                      <div className="mt-3 space-y-2 rounded-xl border border-[#0068B7]/20 bg-white/80 p-3">
+                        <label htmlFor="bookmarklet-code" className="text-xs font-semibold uppercase tracking-wide text-[#0068B7]">
+                          ブックマークレットコード
+                        </label>
+                        <textarea
+                          id="bookmarklet-code"
+                          ref={bookmarkletTextareaRef}
+                          readOnly
+                          value={bookmarkletCode}
+                          rows={4}
+                          className="w-full resize-none rounded-lg border border-[#C5CCD0] bg-white px-3 py-2 font-mono text-xs text-[#0B1F3B] shadow-inner focus:outline-none"
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCopyBookmarklet}
+                            className="inline-flex items-center gap-1 rounded-full bg-[#0068B7] px-3 py-1 text-xs font-semibold text-white transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[#0068B7]/40"
+                          >
+                            コードをコピー
+                            <span aria-hidden="true">&gt;</span>
+                          </button>
+                          <span className="text-xs text-[#0B1F3B]/80">
+                            {isBookmarkletCopied ? 'コピーしました。ブックマークに貼り付けてください。' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              {currentInstruction.notes && currentInstruction.notes.length > 0 && (
+                <div className="rounded-xl bg-white/80 p-4 text-xs text-[#0B1F3B]">
+                  <p className="font-semibold text-[#0068B7]">ワンポイント</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {currentInstruction.notes.map((note, index) => (
+                      <li key={`${instructionMethod}-note-${index}`}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="mt-6">
+              <h3 className="text-base font-semibold text-[#0068B7]">共通のヒント</h3>
+              <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-[#0B1F3B]">
+                <li>アプリ内ブラウザで開いているときは、外部ブラウザで開いてください。</li>
+                <li>
+                  <code>{`{"message":"Unauthorized"}`}</code>
+                  という短いJSONが表示された場合、マイチケットからログアウトしていますので再度ログインして開き直してください。
+                </li>
+                <li>保存やSNSの共有に便利な1枚にまとめた画像も一番下に自動生成されます。</li>
+                <li>自分以外のチケットが含まれている場合は「集計する」チェックボックスを外して集計対象外にできます。</li>
+                <li>
+                  パスの併用等で複数の万博IDをお持ちの場合は、ログインとログアウトを繰り返してIDの分だけデータの読み込みを繰り返してください。読み込むたびに既存データと自動で統合されます。
+                </li>
+                <li>マイチケットやチケット一覧APIの仕様変更により、正しく表示されなかったり機能が利用できなくなる場合があります。</li>
+              </ul>
+            </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm">
               <a
                 href="https://ticket.expo2025.or.jp/myticket/"
