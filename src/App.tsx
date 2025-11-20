@@ -646,7 +646,7 @@ function TicketSchedules({ title, schedules, type, ticketId }: TicketSchedulesPr
                   </dd>
                 </div>
               )}
-              {qrCodeUrl && (
+              {/* {qrCodeUrl && (
                 <div>
                   <dt className="font-medium text-[#0068B7]">QRコード印刷</dt>
                   <dd>
@@ -660,7 +660,7 @@ function TicketSchedules({ title, schedules, type, ticketId }: TicketSchedulesPr
                     </a>
                   </dd>
                 </div>
-              )}
+              )} */}
             </dl>
           </div>
         );
@@ -1894,6 +1894,8 @@ export default function App() {
   const bookmarkletCopyTimeoutRef = useRef<number | null>(null);
   const [isBookmarkletCopied, setIsBookmarkletCopied] = useState(false);
 
+  const dataSectionRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!data) {
       setIncludedTicketMap({});
@@ -2017,6 +2019,11 @@ export default function App() {
       }
       setData((previous) => mergeTicketPayloads(previous, parsed));
       setError('');
+      setTimeout(() => {
+        if (dataSectionRef.current) {
+          dataSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 0);
     } catch (parsingError) {
       setError(parsingError instanceof Error ? parsingError.message : '未知のエラーが発生しました。');
     }
@@ -2208,7 +2215,8 @@ export default function App() {
               </p>
             </div>
             <div className="text-right text-sm text-white/90">
-              <p>最終更新: 2024年10月23日</p>
+              <p>初回公開: 2024年10月04日</p>
+              <p>最終更新: 2024年11月20日</p>
               {/* <p>バージョン 0.1.0</p> */}
             </div>
           </div>
@@ -2223,7 +2231,12 @@ export default function App() {
             </div>
           </div>
         </header>
-
+        <div className="rounded-2xl border border-orange-400 bg-orange-200 px-4 py-4 text-sm text-orange-700">
+          <p className="font-semibold">利用可能なのは11月末までです！</p>
+          <p className="mt-1 leading-relaxed">
+            2025年11月末をもってマイチケットがサービス終了するため、本ツールも同時に利用できなくなります。まだの方はお早めにご利用ください。
+          </p>
+        </div>
         <section className="space-y-6 rounded-3xl border border-[#C5CCD0] bg-white/95 p-6 shadow-sm">
           <div className="rounded-2xl border border-[#E60012]/40 bg-[#E60012]/10 px-4 py-4 text-sm text-[#E60012]">
             <p className="font-semibold">ご利用にあたっての注意</p>
@@ -2442,7 +2455,7 @@ export default function App() {
       </section>
 
         {data && (
-          <section className="space-y-6">
+          <section className="space-y-6" ref={dataSectionRef}>
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-3xl border border-[#0068B7]/15 bg-white p-5 text-center shadow-sm">
                 <p className="text-sm font-medium text-[#0068B7]">チケット数</p>
