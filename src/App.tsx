@@ -1958,6 +1958,29 @@ export default function App() {
     setError('');
   }, []);
 
+  const createExportFileName = useCallback(() => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const baseName = fileName ? fileName.replace(/\.[^.]+$/, '') : 'expo-history';
+    return `${baseName || 'expo-history'}-${timestamp}.json`;
+  }, [fileName]);
+
+  const handleSaveJson = useCallback(() => {
+    if (!data) {
+      return;
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = createExportFileName();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [createExportFileName, data]);
+
   const handleCopyBookmarklet = useCallback(async () => {
     const scheduleReset = () => {
       if (bookmarkletCopyTimeoutRef.current !== null) {
@@ -2436,14 +2459,33 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-              <label className="text-sm font-medium text-[#0B1F3B]">ファイルから読み込む（JSON / HTML / WEBARCHIVE）</label>
-              <label className="flex w-full min-h-[12rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#0068B7]/40 bg-white p-6 text-center text-sm text-[#0B1F3B] transition hover:border-[#0068B7] hover:text-[#0068B7]">
-                <input type="file" accept=".json,.txt,.html,.htm,.webarchive" className="hidden" onChange={handleFileChange} />
-                <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-semibold text-[#0068B7]">クリック{/*またはドラッグ＆ドロップ*/}</span>
-                <p>保存したJSONファイル、またはiPhoneのWeb Archiveファイルを読み込めます。</p>
-                {fileName && <p className="font-medium text-[#0068B7]">選択中: {fileName}</p>}
-                {isLoadingFile && <p className="text-[#E60012]">読み込み中...</p>}
-              </label>
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-[#0B1F3B]">ファイルから読み込む（JSON / HTML / WEBARCHIVE）</label>
+                <label className="flex w-full min-h-[12rem] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#0068B7]/40 bg-white p-6 text-center text-sm text-[#0B1F3B] transition hover:border-[#0068B7] hover:text-[#0068B7]">
+                  <input type="file" accept=".json,.txt,.html,.htm,.webarchive" className="hidden" onChange={handleFileChange} />
+                  <span className="rounded-full bg-[#0068B7]/10 px-3 py-1 text-xs font-semibold text-[#0068B7]">クリック{/*またはドラッグ＆ドロップ*/}</span>
+                  <p>保存したJSONファイル、またはiPhoneのWeb Archiveファイルを読み込めます。</p>
+                  {fileName && <p className="font-medium text-[#0068B7]">選択中: {fileName}</p>}
+                  {isLoadingFile && <p className="text-[#E60012]">読み込み中...</p>}
+                </label>
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-[#0B1F3B] mt-4">JSONを保存</label>
+                <div className="rounded-2xl border border-[#C5CCD0] bg-white p-4 shadow-inner">
+                  <p className="text-sm text-[#0B1F3B]">
+                    今表示しているデータをJSONファイルとしてダウンロードし、あとで「ファイルから読み込む」から再利用できます。<br />
+                    JSONファイルに保存すればマイチケットのサービス終了後もいつでも読み込むことができますので、ついでに保存をおすすめします。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveJson}
+                    disabled={!data}
+                    className="mt-3 w-full rounded-full bg-[#0068B7] px-4 py-3 text-sm font-semibold text-white shadow transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-[#0068B7]/40"
+                  >
+                    {data ? '現在のデータを保存する' : '保存できるデータがありません'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
